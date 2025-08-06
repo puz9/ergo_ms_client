@@ -124,6 +124,13 @@
                   <div class="stat-label">В работе</div>
                 </div>
               </div>
+              <div class="stat-item" v-if="project.attachment_count > 0">
+                <i class="fas fa-paperclip text-info"></i>
+                <div class="stat-content">
+                  <div class="stat-value">{{ project.attachment_count }}</div>
+                  <div class="stat-label">{{ getFileWord(project.attachment_count) }}</div>
+                </div>
+              </div>
             </div>
             
             <!-- Команда -->
@@ -616,6 +623,12 @@ export default {
     getAvatarUrl(user) {
       // Используем локальную утилиту для генерации аватаров
       return getAvatarUrl(user, 32)
+    },
+
+    getFileWord(count) {
+      if (count === 1) return 'файл'
+      if (count >= 2 && count <= 4) return 'файла'
+      return 'файлов'
     },
 
     getProjectLinkQuery() {

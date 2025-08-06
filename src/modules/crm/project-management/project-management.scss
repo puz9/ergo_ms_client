@@ -266,6 +266,52 @@ $pm-transition: 0.2s ease-in-out;
   }
 }
 
+// Кнопки действий в таблицах
+.btn-view-icon,
+.btn-edit-icon,
+.btn-delete-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-small;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.btn-view-icon {
+  &:hover {
+    background: var(--bs-info-bg-subtle);
+    color: var(--bs-info);
+    border-color: var(--bs-info-border-subtle);
+  }
+}
+
+.btn-edit-icon {
+  &:hover {
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning);
+    border-color: var(--bs-warning-border-subtle);
+  }
+}
+
+.btn-delete-icon {
+  &:hover {
+    background: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger);
+    border-color: var(--bs-danger-border-subtle);
+  }
+}
+
 // Стили для кнопок в календаре
 .task-calendar {
   .pm-page-header {
@@ -366,4 +412,200 @@ $pm-transition: 0.2s ease-in-out;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid var(--bs-gray-300);
+} 
+
+// Стили для отображения файлов в таблице задач
+.attachments-cell {
+  text-align: center;
+  width: 80px;
+  
+  .attachments-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    
+    .attachment-count {
+      font-size: 12px;
+      font-weight: 500;
+      color: #6c757d;
+    }
+  }
+  
+  .text-muted {
+    opacity: 0.5;
+  }
+}
+
+// Стили для секции файлов проекта
+.project-files-section {
+  margin-top: 2rem;
+  
+  .files-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .file-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: white;
+    border: 1px solid var(--bs-border-color);
+    border-radius: $radius-usual;
+    box-shadow: $pm-card-shadow;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      box-shadow: $pm-card-hover-shadow;
+      transform: translateY(-1px);
+    }
+    
+    .file-icon {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bs-light);
+      border-radius: $radius-small;
+    }
+    
+    .file-info {
+      flex-grow: 1;
+      min-width: 0;
+      
+      .file-name {
+        margin: 0 0 0.25rem 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        
+        a {
+          color: var(--bs-heading-color);
+          
+          &:hover {
+            color: var(--bs-primary);
+          }
+        }
+      }
+      
+      small {
+        font-size: 0.75rem;
+        line-height: 1.2;
+      }
+    }
+    
+    .file-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+  }
+}
+
+// Стили для блока "Дополнительные поля" в карточке "Информация о проекте"
+.string-fields-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--bs-border-color);
+  
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: var(--bs-heading-color);
+    font-size: 0.9rem;
+  }
+  
+  .string-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .string-field-item {
+    padding: 0.75rem;
+    background: var(--bs-gray-100);
+    border-radius: $radius-small;
+    border: 1px solid var(--bs-border-color);
+    
+    .string-field-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      
+      .field-number {
+        font-weight: 600;
+        color: var(--bs-primary);
+        min-width: 1.5rem;
+        font-size: 0.85rem;
+      }
+      
+      .field-value {
+        flex-grow: 1;
+        font-size: 0.9rem;
+        color: var(--bs-heading-color);
+        line-height: 1.4;
+      }
+    }
+  }
+}
+
+// Стили для строковых полей в модальном окне
+.string-fields-container {
+  .string-field-item {
+    margin-bottom: 0.75rem;
+    
+    .input-group {
+      .form-control {
+        border-radius: $radius-small 0 0 $radius-small;
+      }
+      
+      .btn {
+        border-radius: 0 $radius-small $radius-small 0;
+      }
+    }
+  }
+}
+
+// Стили для блока "Дополнительные поля" в модальном окне просмотра задачи
+.string-fields-section {
+  .string-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .string-field-item {
+    padding: 0.75rem;
+    background: white;
+    border-radius: $radius-small;
+    border: 1px solid var(--bs-border-color);
+    
+    .string-field-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      
+      .field-number {
+        font-weight: 600;
+        color: var(--bs-primary);
+        min-width: 1.5rem;
+        font-size: 0.85rem;
+      }
+      
+      .field-value {
+        flex-grow: 1;
+        font-size: 0.9rem;
+        color: var(--bs-heading-color);
+        line-height: 1.4;
+      }
+    }
+  }
 } 

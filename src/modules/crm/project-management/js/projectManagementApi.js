@@ -375,6 +375,101 @@ class ProjectManagementApi {
     async getDefaultTaskPriority() {
         return await this.client.get('/crm/task-priorities/default/');
     }
+
+    // РОЛИ УЧАСТНИКОВ ПРОЕКТА
+    async getProjectRoles(params = {}) {
+        return await this.client.get('/crm/project-roles/', { params });
+    }
+    async getProjectRole(id) {
+        return await this.client.get(`/crm/project-roles/${id}/`);
+    }
+    async createProjectRole(data) {
+        return await this.client.post('/crm/project-roles/', data);
+    }
+    async updateProjectRole(id, data) {
+        return await this.client.patch(`/crm/project-roles/${id}/`, data);
+    }
+    async deleteProjectRole(id) {
+        return await this.client.delete(`/crm/project-roles/${id}/`);
+    }
+
+    // Вложения задач
+    async getTaskAttachments(taskId) {
+        return await this.client.get('/crm/task-attachments/', { params: { task: taskId } });
+    }
+
+    async uploadTaskAttachment(file, taskId) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('task', taskId);
+        formData.append('filename', file.name);
+
+        return await this.client.post('/crm/task-attachments/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            }
+        });
+    }
+
+    async deleteTaskAttachment(id) {
+        return await this.client.delete(`/crm/task-attachments/${id}/`);
+    }
+
+    // Вложения проектов
+    async getProjectAttachments(projectId) {
+        return await this.client.get('/crm/project-attachments/', { params: { project: projectId } });
+    }
+    
+    async uploadProjectAttachment(file, projectId) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project', projectId);
+        formData.append('filename', file.name);
+    
+        return await this.client.post('/crm/project-attachments/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            }
+        });
+    }
+    
+    async deleteProjectAttachment(id) {
+        return await this.client.delete(`/crm/project-attachments/${id}/`);
+    }
+
+    // Строковые поля проектов
+    async getProjectStringFields(projectId) {
+        return await this.client.get('/crm/project-string-fields/', { params: { project: projectId } });
+    }
+    
+    async createProjectStringField(data) {
+        return await this.client.post('/crm/project-string-fields/', data);
+    }
+    
+    async updateProjectStringField(id, data) {
+        return await this.client.put(`/crm/project-string-fields/${id}/`, data);
+    }
+    
+    async deleteProjectStringField(id) {
+        return await this.client.delete(`/crm/project-string-fields/${id}/`);
+    }
+
+    // Строковые поля задач
+    async getTaskStringFields(taskId) {
+        return await this.client.get('/crm/task-string-fields/', { params: { task: taskId } });
+    }
+    
+    async createTaskStringField(data) {
+        return await this.client.post('/crm/task-string-fields/', data);
+    }
+    
+    async updateTaskStringField(id, data) {
+        return await this.client.put(`/crm/task-string-fields/${id}/`, data);
+    }
+    
+    async deleteTaskStringField(id) {
+        return await this.client.delete(`/crm/task-string-fields/${id}/`);
+    }
 }
 
 const projectManagementApi = new ProjectManagementApi();

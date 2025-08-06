@@ -174,11 +174,14 @@
                 </td>
                 <td @click.stop class="actions-cell">
                   <div class="action-buttons">
+                    <button class="btn btn-view-icon" @click="viewTask(task)" title="Просмотреть">
+                      <i class="fas fa-eye"></i>
+                    </button>
                     <button class="btn btn-edit-icon" @click="editTask(task)" title="Редактировать">
-                      <Edit />
+                      <Edit :size="14" />
                     </button>
                     <button class="btn btn-delete-icon" @click="deleteTask(task)" title="Удалить">
-                      <Trash2 />
+                      <Trash2 :size="14" />
                     </button>
                   </div>
                 </td>
@@ -297,6 +300,99 @@
                 <input type="number" class="form-control" step="0.5" v-model="currentTask.estimated_hours"
                        placeholder="Сколько часов потребуется">
               </div>
+              
+              <!-- Существующие файлы (только при редактировании) -->
+              <div v-if="isEditing && currentTask.attachments && currentTask.attachments.length > 0" class="mb-4">
+                <label class="form-label fw-bold">
+                  <i class="fas fa-paperclip me-2"></i>Текущие вложения
+                </label>
+                <div class="list-group">
+                  <div v-for="file in currentTask.attachments" :key="file.id" class="list-group-item d-flex align-items-center">
+                    <i class="fas fa-file-alt text-primary me-2"></i>
+                    <a :href="file.file" target="_blank" class="flex-grow-1 text-decoration-none">
+                      {{ file.filename }}
+                    </a>
+                    <small class="text-muted me-2">({{ formatDateTime(file.uploaded_at) }})</small>
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeExistingFile(file.id)">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Загрузка новых файлов -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <i class="fas fa-paperclip me-2"></i>{{ isEditing ? 'Добавить файлы' : 'Вложения' }}
+                </label>
+                <div class="file-upload-area" 
+                     @drop="onFileDrop" 
+                     @dragover.prevent 
+                     @dragenter="onDragEnter"
+                     @dragleave="onDragLeave"
+                     :class="{ 'drag-over': isDragOver }">
+                  <div class="file-upload-content text-center p-4">
+                    <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-3"></i>
+                    <p class="text-muted mb-2">Перетащите файлы сюда или</p>
+                    <input type="file" 
+                           ref="fileInput" 
+                           @change="onFileSelect" 
+                           multiple 
+                           class="d-none">
+                    <button type="button" class="btn btn-outline-primary" @click="$refs.fileInput.click()">
+                      <i class="fas fa-folder-open me-2"></i>Выбрать файлы
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Список выбранных файлов -->
+                <div v-if="selectedFiles.length > 0" class="selected-files mt-3">
+                  <h6 class="text-muted mb-2">Новые файлы:</h6>
+                  <div class="list-group">
+                    <div v-for="(file, index) in selectedFiles" :key="index" class="list-group-item d-flex align-items-center">
+                      <i class="fas fa-file-alt text-primary me-2"></i>
+                      <span class="flex-grow-1">{{ file.name }}</span>
+                      <small class="text-muted me-2">({{ formatFileSize(file.size) }})</small>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="removeFile(index)">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Дополнительные поля -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <List class="me-2" :size="16" />
+                  Дополнительные поля
+                </label>
+                <div class="string-fields-container">
+                  <div v-for="(field, index) in currentTask.string_fields" :key="field.id" class="string-field-item mb-2">
+                    <div class="input-group">
+                      <input type="text"
+                             class="form-control"
+                             v-model="field.value"
+                             :placeholder="`Поле ${index + 1}`"
+                             @blur="updateTaskStringField(field)">
+                      <button type="button"
+                              class="btn btn-outline-danger"
+                              @click="removeTaskStringField(field.id, index)"
+                              title="Удалить поле">
+                        <X :size="14" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button type="button"
+                          class="btn btn-outline-primary btn-sm"
+                          @click="addTaskStringField"
+                          title="Добавить поле">
+                    <Plus class="me-1" :size="14" />
+                    Добавить поле
+                  </button>
+                </div>
+              </div>
             </form>
           </div>
           <div class="modal-footer border-top">
@@ -345,6 +441,40 @@
                   <i class="fas fa-align-left me-2"></i>Описание
                 </h6>
                 <p class="mb-0 text-dark">{{ selectedTask.description }}</p>
+              </div>
+
+              <!-- Вложения -->
+              <div class="attachments-section mb-4 p-3 bg-light rounded" v-if="selectedTask.attachments && selectedTask.attachments.length">
+                <h6 class="text-uppercase text-muted small mb-2">
+                  <i class="fas fa-paperclip me-2"></i>Вложения
+                </h6>
+                <ul class="list-unstyled mb-0">
+                  <li v-for="file in selectedTask.attachments" :key="file.id" class="d-flex align-items-center mb-2">
+                    <a :href="file.file" target="_blank" class="me-2 text-primary text-decoration-underline">
+                      <i class="fas fa-file-alt me-1"></i>{{ file.filename }}
+                    </a>
+                    <span class="text-muted small me-2">({{ formatDateTime(file.uploaded_at) }})</span>
+                    <button class="btn btn-sm btn-outline-danger ms-auto" @click="deleteAttachment(file)" title="Удалить файл">
+                      <Trash2 :size="16" />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Дополнительные поля -->
+              <div class="string-fields-section mb-4 p-3 bg-light rounded" v-if="selectedTask.string_fields && selectedTask.string_fields.length > 0">
+                <h6 class="text-uppercase text-muted small mb-2">
+                  <List class="me-2" :size="16" />
+                  Дополнительные поля
+                </h6>
+                <div class="string-fields-list">
+                  <div v-for="(field, index) in selectedTask.string_fields" :key="field.id" class="string-field-item">
+                    <div class="string-field-content">
+                      <span class="field-number">{{ index + 1 }}.</span>
+                      <span class="field-value">{{ field.value }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Основная информация в карточках -->
@@ -497,7 +627,7 @@
 
 <script>
 import { Modal } from 'bootstrap'
-import { Edit, Trash2 } from 'lucide-vue-next'
+import { Edit, Trash2, List, Plus, X } from 'lucide-vue-next'
 import projectManagementApi from '@/modules/crm/project-management/js/projectManagementApi.js'
 import { useNotifications } from '@/modules/lms/composables/useNotifications'
 import { getAvatarUrl } from '@/modules/cms/js/avatarUtils.js'
@@ -506,7 +636,10 @@ export default {
   name: 'TasksList',
   components: {
     Edit,
-    Trash2
+    Trash2,
+    List,
+    Plus,
+    X
   },
   props: {
     managementMode: {
@@ -549,7 +682,8 @@ export default {
         priority: 'medium',
         start_date: '',
         due_date: '',
-        estimated_hours: null
+        estimated_hours: null,
+        string_fields: [] // Добавляем поле для дополнительных полей
       },
       selectedTask: {},
       isEditing: false,
@@ -557,7 +691,10 @@ export default {
       // Динамические данные для статусов и приоритетов
       taskStatuses: [],
       taskPriorities: [],
-      loadingStatuses: false
+      loadingStatuses: false,
+      selectedFiles: [],
+      isDragOver: false,
+      originalAttachments: [] // Для хранения исходного списка файлов при редактировании
     }
   },
   
@@ -759,27 +896,64 @@ export default {
         priority: defaultPriority ? defaultPriority.code : 'medium',
         start_date: '',
         due_date: '',
-        estimated_hours: null
+        estimated_hours: null,
+        string_fields: [] // Очищаем дополнительные поля при создании
       }
+      
+      // Очищаем выбранные файлы
+      this.selectedFiles = []
+      this.originalAttachments = []
       
       const modal = new Modal(document.getElementById('taskModal'))
       modal.show()
     },
     
-    editTask(task) {
+    async editTask(task) {
       this.isEditing = true
-      this.currentTask = {
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        project_id: task.project?.id,
-        assignee_id: task.assignee?.id,
-        status: task.status,
-        priority: task.priority,
-        start_date: task.start_date ? this.formatDateTimeLocal(new Date(task.start_date)) : '',
-        due_date: task.due_date ? this.formatDateTimeLocal(new Date(task.due_date)) : '',
-        estimated_hours: task.estimated_hours
+      
+      try {
+        // Загружаем полную информацию о задаче с вложениями
+        const response = await projectManagementApi.getTask(task.id)
+        const fullTask = response.data
+        
+        this.currentTask = {
+          id: fullTask.id,
+          title: fullTask.title,
+          description: fullTask.description,
+          project_id: fullTask.project?.id,
+          assignee_id: fullTask.assignee?.id,
+          status: fullTask.status,
+          priority: fullTask.priority,
+          start_date: fullTask.start_date ? this.formatDateTimeLocal(new Date(fullTask.start_date)) : '',
+          due_date: fullTask.due_date ? this.formatDateTimeLocal(new Date(fullTask.due_date)) : '',
+          estimated_hours: fullTask.estimated_hours,
+          attachments: fullTask.attachments || [], // Загружаем существующие вложения
+          string_fields: fullTask.string_fields || [] // Загружаем дополнительные поля
+        }
+        
+        // Сохраняем исходный список файлов
+        this.originalAttachments = [...(fullTask.attachments || [])]
+      } catch (error) {
+        console.error('Ошибка загрузки задачи:', error)
+        // Fallback к данным из списка
+        this.currentTask = {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          project_id: task.project?.id,
+          assignee_id: task.assignee?.id,
+          status: task.status,
+          priority: task.priority,
+          start_date: task.start_date ? this.formatDateTimeLocal(new Date(task.start_date)) : '',
+          due_date: task.due_date ? this.formatDateTimeLocal(new Date(task.due_date)) : '',
+          estimated_hours: task.estimated_hours,
+          attachments: task.attachments || [],
+          string_fields: task.string_fields || []
+        }
       }
+      
+      // Очищаем выбранные файлы при редактировании
+      this.selectedFiles = []
       
       const modal = new Modal(document.getElementById('taskModal'))
       modal.show()
@@ -793,8 +967,17 @@ export default {
       if (viewModal) viewModal.hide()
     },
     
-    viewTask(task) {
-      this.selectedTask = task
+    async viewTask(task) {
+      try {
+        // Загружаем полную информацию о задаче с вложениями
+        const response = await projectManagementApi.getTask(task.id)
+        this.selectedTask = response.data
+      } catch (error) {
+        console.error('Ошибка загрузки задачи:', error)
+        // Fallback к данным из списка
+        this.selectedTask = task
+      }
+      
       const modal = new Modal(document.getElementById('taskViewModal'))
       modal.show()
     },
@@ -808,13 +991,50 @@ export default {
           assignee_id: this.currentTask.assignee_id || null,
           start_date: this.currentTask.start_date || null,
           due_date: this.currentTask.due_date || null,
-          estimated_hours: this.currentTask.estimated_hours || null
+          estimated_hours: this.currentTask.estimated_hours || null,
+          string_fields: this.currentTask.string_fields || [] // Отправляем дополнительные поля
         }
         
+        let taskId
         if (this.isEditing) {
-          await projectManagementApi.updateTask(taskData.id, taskData)
+          const response = await projectManagementApi.updateTask(taskData.id, taskData)
+          taskId = taskData.id
+          
+          // Удаляем файлы, которые были убраны из списка
+          const removedFiles = this.originalAttachments.filter(file => 
+            !this.currentTask.attachments.find(current => current.id === file.id)
+          )
+          
+          for (const file of removedFiles) {
+            try {
+              await projectManagementApi.deleteTaskAttachment(file.id)
+            } catch (error) {
+              console.error('Ошибка удаления файла:', error)
+            }
+          }
         } else {
-          await projectManagementApi.createTask(taskData)
+          const response = await projectManagementApi.createTask(taskData)
+          taskId = response.data.id
+        }
+        
+        // Загружаем новые файлы
+        if (this.selectedFiles.length > 0) {
+          await this.uploadTaskFiles(taskId)
+        }
+        
+        // Обработка дополнительных полей
+        // Создаем новые поля
+        const newStringFieldsToCreate = this.currentTask.string_fields.filter(field => field.is_new)
+        for (const field of newStringFieldsToCreate) {
+          try {
+            await projectManagementApi.createTaskStringField({
+              task: taskId,
+              value: field.value,
+              order: field.order
+            })
+          } catch (error) {
+            console.error('Ошибка создания нового строкового поля:', error)
+          }
         }
         
         // Закрываем модальное окно
@@ -998,6 +1218,130 @@ export default {
         setTimeout(() => {
           this.$router.push(`/crm/project-management/project/${this.selectedTask.project.id}`)
         }, 300)
+      }
+    },
+
+    async deleteAttachment(file) {
+      const confirmed = await this.showConfirmDialog({
+        title: 'Удаление файла',
+        message: `Вы уверены, что хотите удалить файл "${file.filename}"?`,
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        variant: 'danger'
+      })
+      if (!confirmed) return
+      try {
+        await projectManagementApi.deleteTaskAttachment(file.id)
+        // Удаляем файл из массива attachments без перезагрузки всей задачи
+        this.selectedTask.attachments = this.selectedTask.attachments.filter(att => att.id !== file.id)
+        this.showSuccess('Файл удалён')
+      } catch (error) {
+        this.showError('Ошибка удаления файла')
+      }
+    },
+
+    async removeExistingFile(fileId) {
+      // Удаляем файл из списка текущих вложений
+      this.currentTask.attachments = this.currentTask.attachments.filter(file => file.id !== fileId);
+      // Файл будет физически удален при сохранении задачи
+    },
+
+    onFileDrop(event) {
+      this.isDragOver = false
+      const files = Array.from(event.dataTransfer.files)
+      this.addFiles(files)
+    },
+    
+    onFileSelect(event) {
+      const files = Array.from(event.target.files)
+      this.addFiles(files)
+      // Сбрасываем input для возможности повторного выбора тех же файлов
+      event.target.value = ''
+    },
+    
+    addFiles(files) {
+      files.forEach(file => {
+        // Проверяем, что файл еще не добавлен
+        if (!this.selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+          this.selectedFiles.push(file)
+        }
+      })
+    },
+    
+    removeFile(index) {
+      this.selectedFiles.splice(index, 1)
+    },
+    
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes'
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    },
+    
+    async uploadTaskFiles(taskId) {
+      if (this.selectedFiles.length === 0) return
+      
+      console.log('Загружаем файлы для задачи:', taskId)
+      console.log('Файлы для загрузки:', this.selectedFiles.map(f => ({ name: f.name, size: f.size })))
+      
+      const uploadPromises = this.selectedFiles.map(file => 
+        projectManagementApi.uploadTaskAttachment(file, taskId)
+      )
+      
+      try {
+        await Promise.all(uploadPromises)
+        this.selectedFiles = [] // Очищаем список после успешной загрузки
+        console.log('Файлы успешно загружены')
+      } catch (error) {
+        console.error('Ошибка загрузки файлов:', error)
+        console.error('Детали ошибки:', error.response?.data)
+        this.showError('Ошибка загрузки файлов')
+      }
+    },
+
+    onDragEnter(event) {
+      this.isDragOver = true
+    },
+    
+    onDragLeave(event) {
+      // Проверяем, что мы действительно покидаем зону, а не переходим к дочернему элементу
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        this.isDragOver = false
+      }
+    },
+
+    // Методы для работы с дополнительными полями
+    addTaskStringField() {
+      // Просто добавляем поле в интерфейс
+      this.currentTask.string_fields.push({
+        id: `temp_${Date.now()}_${Math.random()}`, // Временный ID
+        value: '',
+        order: this.currentTask.string_fields.length,
+        is_new: true // Флаг для определения новых полей
+      })
+    },
+
+    removeTaskStringField(fieldId, index) {
+      // Просто удаляем поле из интерфейса
+      this.currentTask.string_fields.splice(index, 1)
+    },
+
+    updateTaskStringField(field) {
+      // Обновляем только существующие поля (не новые)
+      if (!field.is_new && field.id) {
+        projectManagementApi.updateTaskStringField(field.id, {
+          value: field.value,
+          order: field.order
+        })
+        .then(() => {
+          this.showSuccess('Поле обновлено')
+        })
+        .catch(error => {
+          console.error('Ошибка обновления поля:', error)
+          this.showError('Ошибка обновления поля')
+        })
       }
     }
   }
@@ -1202,6 +1546,37 @@ export default {
 
 .btn {
   @include pm-button;
+}
+
+.file-upload-area {
+  border: 2px dashed var(--bs-border-color);
+  border-radius: $radius-usual;
+  background: var(--bs-light);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  
+  &:hover {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+  }
+  
+  &.drag-over {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    transform: scale(1.02);
+  }
+}
+
+.selected-files {
+  .list-group-item {
+    border: 1px solid var(--bs-border-color);
+    border-radius: $radius-small;
+    margin-bottom: 0.5rem;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
 }
 
 // Пагинация

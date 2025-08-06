@@ -175,6 +175,10 @@
             {
               "routeName": "ProjectsAndTasksManagement",
               "name": "Проекты и задачи"
+            },
+            {
+              "routeName": "ProjectRoleManagement",
+              "name": "Управление ролями"
             }
           ]
         }

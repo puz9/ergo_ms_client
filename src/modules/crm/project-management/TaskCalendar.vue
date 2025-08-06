@@ -375,6 +375,102 @@
                 <label class="form-label">Оценка времени (часы)</label>
                 <input type="number" class="form-control" step="0.5" v-model="currentTask.estimated_hours">
               </div>
+              
+              <!-- Существующие файлы (только при редактировании) -->
+              <div v-if="isEditing && currentTask.attachments && currentTask.attachments.length > 0" class="mb-4">
+                <label class="form-label fw-bold">
+                  <Paperclip class="me-2" :size="16" />
+                  Текущие вложения
+                </label>
+                <div class="list-group">
+                  <div v-for="file in currentTask.attachments" :key="file.id" class="list-group-item d-flex align-items-center">
+                    <FileText class="text-primary me-2" :size="16" />
+                    <a :href="file.file" target="_blank" class="flex-grow-1 text-decoration-none">
+                      {{ file.filename }}
+                    </a>
+                    <small class="text-muted me-2">({{ formatDateTime(file.uploaded_at) }})</small>
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeExistingFile(file.id)">
+                      <X :size="14" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Загрузка новых файлов -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <Paperclip class="me-2" :size="16" />
+                  {{ isEditing ? 'Добавить файлы' : 'Вложения' }}
+                </label>
+                <div class="file-upload-area" 
+                     @drop="onFileDrop" 
+                     @dragover.prevent 
+                     @dragenter="onDragEnter"
+                     @dragleave="onDragLeave"
+                     :class="{ 'drag-over': isDragOver }">
+                  <div class="file-upload-content text-center p-4">
+                    <Upload class="text-muted mb-3" :size="32" />
+                    <p class="text-muted mb-2">Перетащите файлы сюда или</p>
+                    <input type="file" 
+                           ref="fileInput" 
+                           @change="onFileSelect" 
+                           multiple 
+                           class="d-none">
+                    <button type="button" class="btn btn-outline-primary" @click="$refs.fileInput.click()">
+                      <FolderOpen class="me-2" :size="16" />
+                      Выбрать файлы
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Список выбранных файлов -->
+                <div v-if="selectedFiles.length > 0" class="selected-files mt-3">
+                  <h6 class="text-muted mb-2">Новые файлы:</h6>
+                  <div class="list-group">
+                    <div v-for="(file, index) in selectedFiles" :key="index" class="list-group-item d-flex align-items-center">
+                      <FileText class="text-primary me-2" :size="16" />
+                      <span class="flex-grow-1">{{ file.name }}</span>
+                      <small class="text-muted me-2">({{ formatFileSize(file.size) }})</small>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="removeFile(index)">
+                        <X :size="14" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Дополнительные поля -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <List class="me-2" :size="16" />
+                  Дополнительные поля
+                </label>
+                <div class="string-fields-container">
+                  <div v-for="(field, index) in currentTask.string_fields" :key="field.id" class="string-field-item mb-2">
+                    <div class="input-group">
+                      <input type="text"
+                             class="form-control"
+                             v-model="field.value"
+                             :placeholder="`Поле ${index + 1}`"
+                             @blur="updateTaskStringField(field)">
+                      <button type="button"
+                              class="btn btn-outline-danger"
+                              @click="removeTaskStringField(field.id, index)"
+                              title="Удалить поле">
+                        <X :size="14" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button type="button"
+                          class="btn btn-outline-primary btn-sm"
+                          @click="addTaskStringField"
+                          title="Добавить поле">
+                    <Plus class="me-1" :size="14" />
+                    Добавить поле
+                  </button>
+                </div>
+              </div>
             </form>
           </div>
           <div class="modal-footer">
@@ -440,6 +536,42 @@
             <div v-if="viewTaskData.estimated_hours" class="mt-2">
               <strong>Оценка времени:</strong> {{ viewTaskData.estimated_hours }} ч.
             </div>
+            
+            <!-- Вложения -->
+            <div class="attachments-section mb-4 p-3 bg-light rounded" v-if="viewTaskData.attachments && viewTaskData.attachments.length">
+              <h6 class="text-uppercase text-muted small mb-2">
+                <Paperclip class="me-2" :size="16" />
+                Вложения
+              </h6>
+              <ul class="list-unstyled mb-0">
+                <li v-for="file in viewTaskData.attachments" :key="file.id" class="d-flex align-items-center mb-2">
+                  <a :href="file.file" target="_blank" class="me-2 text-primary text-decoration-underline">
+                    <FileText class="me-1" :size="16" />
+                    {{ file.filename }}
+                  </a>
+                  <span class="text-muted small me-2">({{ formatDateTime(file.uploaded_at) }})</span>
+                  <button class="btn btn-sm btn-outline-danger ms-auto" @click="deleteAttachment(file)" title="Удалить файл">
+                    <Trash2 :size="16" />
+                  </button>
+                </li>
+              </ul>
+            </div>
+            
+            <!-- Дополнительные поля -->
+            <div class="string-fields-section mb-4 p-3 bg-light rounded" v-if="viewTaskData.string_fields && viewTaskData.string_fields.length > 0">
+              <h6 class="text-uppercase text-muted small mb-2">
+                <List class="me-2" :size="16" />
+                Дополнительные поля
+              </h6>
+              <div class="string-fields-list">
+                <div v-for="(field, index) in viewTaskData.string_fields" :key="field.id" class="string-field-item">
+                  <div class="string-field-content">
+                    <span class="field-number">{{ index + 1 }}.</span>
+                    <span class="field-value">{{ field.value }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
@@ -454,7 +586,7 @@
 </template>
 
 <script>
-import { ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight, Paperclip, Upload, FolderOpen, List, Plus, X, Trash2 } from 'lucide-vue-next'
 import { Modal } from 'bootstrap'
 import projectManagementApi from '@/modules/crm/project-management/js/projectManagementApi.js'
 import { useNotifications } from '@/modules/lms/composables/useNotifications'
@@ -466,7 +598,14 @@ export default {
     ChevronRight,
     Calendar,
     ChevronsLeft,
-    ChevronsRight
+    ChevronsRight,
+    Paperclip,
+    Upload,
+    FolderOpen,
+    List,
+    Plus,
+    X,
+    Trash2
   },
   setup() {
     const { showSuccess, showError, showConfirmDialog, closeConfirmDialog } = useNotifications()
@@ -499,13 +638,18 @@ export default {
         priority: 'medium',
         start_date: '',
         due_date: '',
-        estimated_hours: null
+        estimated_hours: null,
+        attachments: [], // Новые поля для вложений
+        string_fields: [] // Новые поля для дополнительных полей
       },
       viewTaskData: {},
       isEditing: false,
       weekDays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
       showTasks: true,
-      showProjects: true
+      showProjects: true,
+      isDragOver: false, // Состояние для перетаскивания файлов
+      selectedFiles: [], // Массив для хранения выбранных файлов
+      originalAttachments: [] // Для хранения исходного списка файлов при редактировании
     }
   },
   
@@ -940,7 +1084,9 @@ export default {
         priority: defaultPriority ? defaultPriority.code : 'medium',
         start_date: initialStartDate,
         due_date: '',
-        estimated_hours: null
+        estimated_hours: null,
+        attachments: [], // Новые поля для вложений
+        string_fields: [] // Новые поля для дополнительных полей
       }
       
       const modal = new Modal(document.getElementById('taskModal'))
@@ -949,45 +1095,69 @@ export default {
     
     editTask(task) {
       this.isEditing = true
-      this.currentTask = {
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        project_id: task.project?.id,
-        assignee_id: task.assignee?.id,
-        status: task.status,
-        priority: task.priority,
-        start_date: task.start_date ? this.formatDateTimeLocal(task.start_date) : '',
-        due_date: task.due_date ? this.formatDateTimeLocal(task.due_date) : '',
-        estimated_hours: task.estimated_hours
-      }
       
-      // Закрываем модальное окно просмотра
-      const viewModal = Modal.getInstance(document.getElementById('taskViewModal'))
-      if (viewModal) viewModal.hide()
-      
-      // Открываем модальное окно редактирования
-      const editModal = new Modal(document.getElementById('taskModal'))
-      editModal.show()
+      // Загружаем полную информацию о задаче
+      this.loadFullTaskData(task.id).then(fullTask => {
+        this.currentTask = {
+          id: fullTask.id,
+          title: fullTask.title,
+          description: fullTask.description,
+          project_id: fullTask.project?.id,
+          assignee_id: fullTask.assignee?.id,
+          status: fullTask.status,
+          priority: fullTask.priority,
+          start_date: fullTask.start_date ? this.formatDateTimeLocal(fullTask.start_date) : '',
+          due_date: fullTask.due_date ? this.formatDateTimeLocal(fullTask.due_date) : '',
+          estimated_hours: fullTask.estimated_hours,
+          attachments: fullTask.attachments || [],
+          string_fields: fullTask.string_fields || []
+        }
+        
+        // Сохраняем исходный список файлов
+        this.originalAttachments = [...(fullTask.attachments || [])]
+        
+        // Очищаем выбранные файлы
+        this.selectedFiles = []
+        
+        const modal = new Modal(document.getElementById('taskModal'))
+        modal.show()
+      }).catch(error => {
+        console.error('Ошибка загрузки задачи:', error)
+        // Fallback к данным из списка
+        this.currentTask = {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          project_id: task.project?.id,
+          assignee_id: task.assignee?.id,
+          status: task.status,
+          priority: task.priority,
+          start_date: task.start_date ? this.formatDateTimeLocal(task.start_date) : '',
+          due_date: task.due_date ? this.formatDateTimeLocal(task.due_date) : '',
+          estimated_hours: task.estimated_hours,
+          attachments: task.attachments || [],
+          string_fields: task.string_fields || []
+        }
+        this.selectedFiles = []
+        
+        const modal = new Modal(document.getElementById('taskModal'))
+        modal.show()
+      })
     },
     
-    viewTask(taskEvent) {
-      if (!taskEvent) {
-        console.error('Некорректные данные задачи:', taskEvent)
-        this.showError('Ошибка открытия задачи')
-        return
-      }
-      
-      try {
-        // Создаем объект задачи без дополнительных полей события
-        const { eventType, displayTitle, eventDate, ...taskData } = taskEvent
-        this.viewTaskData = taskData
+    viewTask(task) {
+      // Загружаем полную информацию о задаче
+      this.loadFullTaskData(task.id).then(fullTask => {
+        this.viewTaskData = fullTask
         const modal = new Modal(document.getElementById('taskViewModal'))
         modal.show()
-      } catch (error) {
-        console.error('Ошибка открытия модального окна:', error)
-        this.showError('Ошибка отображения задачи')
-      }
+      }).catch(error => {
+        console.error('Ошибка загрузки задачи:', error)
+        // Fallback к данным из списка
+        this.viewTaskData = task
+        const modal = new Modal(document.getElementById('taskViewModal'))
+        modal.show()
+      })
     },
     
     async submitTask() {
@@ -1016,13 +1186,51 @@ export default {
         if (!taskData.estimated_hours || taskData.estimated_hours === '') {
           delete taskData.estimated_hours
         }
+
+        // Убираем поля, которые не должны отправляться на сервер
+        delete taskData.attachments
+        delete taskData.string_fields
         
         let response
         
         if (this.isEditing) {
           response = await projectManagementApi.updateTask(this.currentTask.id, taskData)
+          
+          // Удаляем файлы, которые были убраны из списка
+          const removedFiles = this.originalAttachments.filter(file => 
+            !this.currentTask.attachments.find(current => current.id === file.id)
+          )
+          
+          for (const file of removedFiles) {
+            try {
+              await projectManagementApi.deleteTaskAttachment(file.id)
+            } catch (error) {
+              console.error('Ошибка удаления файла:', error)
+            }
+          }
         } else {
           response = await projectManagementApi.createTask(taskData)
+          taskData.id = response.data.id
+        }
+        
+        // Загружаем новые файлы
+        if (this.selectedFiles.length > 0) {
+          await this.uploadTaskFiles(taskData.id)
+        }
+        
+        // Обработка дополнительных полей
+        // Создаем новые поля
+        const newStringFieldsToCreate = this.currentTask.string_fields.filter(field => field.is_new)
+        for (const field of newStringFieldsToCreate) {
+          try {
+            await projectManagementApi.createTaskStringField({
+              task: taskData.id,
+              value: field.value,
+              order: field.order
+            })
+          } catch (error) {
+            console.error('Ошибка создания нового строкового поля:', error)
+          }
         }
         
         // Закрываем модальное окно
@@ -1042,7 +1250,9 @@ export default {
           priority: defaultPriority ? defaultPriority.code : 'medium',
           start_date: '',
           due_date: '',
-          estimated_hours: null
+          estimated_hours: null,
+          attachments: [], // Новые поля для вложений
+          string_fields: [] // Новые поля для дополнительных полей
         }
         
         // Перезагружаем события
@@ -1391,6 +1601,136 @@ export default {
       return taskEvents.some(event => 
         event.id === task.id && event.eventType === eventType
       )
+    },
+
+    // Методы для работы с вложениями
+    onFileDrop(event) {
+      this.isDragOver = false
+      this.handleFiles(event.dataTransfer.files)
+    },
+
+    onDragEnter() {
+      this.isDragOver = true
+    },
+
+    onDragLeave() {
+      this.isDragOver = false
+    },
+
+    onFileSelect(event) {
+      this.handleFiles(event.target.files)
+    },
+
+    handleFiles(files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+          this.showError(`Файл "${file.name}" слишком большой (макс. 10MB).`)
+          continue
+        }
+        this.selectedFiles.push(file)
+      }
+    },
+
+    removeFile(index) {
+      this.selectedFiles.splice(index, 1)
+    },
+
+    // Методы для работы с существующими вложениями
+    async removeExistingFile(fileId) {
+      const confirmed = await this.showConfirmDialog({
+        title: 'Удаление вложения',
+        message: 'Вы уверены, что хотите удалить это вложение?',
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        variant: 'danger'
+      })
+
+      if (confirmed) {
+        try {
+          await projectManagementApi.deleteTaskAttachment(fileId)
+          this.currentTask.attachments = this.currentTask.attachments.filter(f => f.id !== fileId)
+          this.showSuccess('Вложение удалено')
+        } catch (error) {
+          console.error('Ошибка удаления вложения:', error)
+          this.showError('Ошибка удаления вложения')
+        }
+      }
+    },
+
+    // Методы для работы с дополнительными полями
+    addTaskStringField() {
+      // Просто добавляем поле в интерфейс
+      this.currentTask.string_fields.push({
+        id: `temp_${Date.now()}_${Math.random()}`, // Временный ID
+        value: '',
+        order: this.currentTask.string_fields.length,
+        is_new: true // Флаг для определения новых полей
+      })
+    },
+
+    removeTaskStringField(fieldId, index) {
+      // Просто удаляем поле из интерфейса
+      this.currentTask.string_fields.splice(index, 1)
+    },
+
+    updateTaskStringField(field) {
+      // Обновляем только существующие поля (не новые)
+      if (!field.is_new && field.id) {
+        projectManagementApi.updateTaskStringField(field.id, {
+          value: field.value,
+          order: field.order
+        })
+        .then(() => {
+          this.showSuccess('Поле обновлено')
+        })
+        .catch(error => {
+          console.error('Ошибка обновления поля:', error)
+          this.showError('Ошибка обновления поля')
+        })
+      }
+    },
+
+    async loadFullTaskData(taskId) {
+      try {
+        const response = await projectManagementApi.getTask(taskId)
+        return response.data
+      } catch (error) {
+        console.error('Ошибка загрузки полной информации о задаче:', error)
+        throw error
+      }
+    },
+
+    async uploadTaskFiles(taskId) {
+      for (const file of this.selectedFiles) {
+        try {
+          await projectManagementApi.uploadTaskAttachment(file, taskId)
+        } catch (error) {
+          console.error('Ошибка загрузки файла:', error)
+          this.showError('Ошибка загрузки файла: ' + file.name)
+        }
+      }
+      this.selectedFiles = []
+    },
+
+    async deleteAttachment(file) {
+      try {
+        await projectManagementApi.deleteTaskAttachment(file.id)
+        this.showSuccess('Файл удален')
+        // Обновляем данные задачи
+        await this.loadEvents()
+      } catch (error) {
+        console.error('Ошибка удаления файла:', error)
+        this.showError('Ошибка удаления файла')
+      }
+    },
+
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes'
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
     }
   }
 }
@@ -2080,6 +2420,73 @@ export default {
           font-size: 10px;
           padding: 2px 4px;
         }
+      }
+    }
+  }
+}
+
+// Стили для файлов и дополнительных полей
+.file-upload-area {
+  border: 2px dashed var(--bs-border-color);
+  border-radius: $radius-usual;
+  transition: all 0.2s ease;
+  
+  &.drag-over {
+    border-color: var(--bs-primary);
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+  
+  .file-upload-content {
+    color: var(--bs-secondary-color);
+  }
+}
+
+.string-fields-container {
+  .string-field-item {
+    margin-bottom: 0.75rem;
+    
+    .input-group {
+      .form-control {
+        border-radius: $radius-small 0 0 $radius-small;
+      }
+      
+      .btn {
+        border-radius: 0 $radius-small $radius-small 0;
+      }
+    }
+  }
+}
+
+.string-fields-section {
+  .string-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .string-field-item {
+    padding: 0.75rem;
+    background: white;
+    border-radius: $radius-small;
+    border: 1px solid var(--bs-border-color);
+    
+    .string-field-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      
+      .field-number {
+        font-weight: 600;
+        color: var(--bs-primary);
+        min-width: 1.5rem;
+        font-size: 0.85rem;
+      }
+      
+      .field-value {
+        flex-grow: 1;
+        font-size: 0.9rem;
+        color: var(--bs-heading-color);
+        line-height: 1.4;
       }
     }
   }

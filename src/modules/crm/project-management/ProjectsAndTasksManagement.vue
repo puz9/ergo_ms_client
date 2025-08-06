@@ -35,6 +35,13 @@
             <i class="fas fa-exclamation-triangle me-2"></i>Приоритеты
           </button>
         </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="roles-tab" data-bs-toggle="tab" 
+                  data-bs-target="#roles" type="button" role="tab" aria-controls="roles" 
+                  aria-selected="false" @click="activeTab = 'roles'">
+            <i class="fas fa-user-shield me-2"></i>Роли команды
+          </button>
+        </li>
       </ul>
     </div>
 
@@ -156,6 +163,11 @@
           </div>
         </div>
       </div>
+
+      <!-- Вкладка ролей -->
+      <div class="tab-pane fade" id="roles" role="tabpanel" aria-labelledby="roles-tab">
+        <ProjectRoleManagement />
+      </div>
     </div>
   </div>
 </template>
@@ -168,6 +180,7 @@ import ProjectStatusManagement from './ProjectStatusManagement.vue'
 import ProjectPriorityManagement from './ProjectPriorityManagement.vue'
 import TaskStatusManagement from './TaskStatusManagement.vue'
 import TaskPriorityManagement from './TaskPriorityManagement.vue'
+import ProjectRoleManagement from './ProjectRoleManagement.vue'
 
 export default {
   name: 'ProjectsAndTasksManagement',
@@ -178,7 +191,8 @@ export default {
     ProjectStatusManagement,
     ProjectPriorityManagement,
     TaskStatusManagement,
-    TaskPriorityManagement
+    TaskPriorityManagement,
+    ProjectRoleManagement
   },
   data() {
     return {

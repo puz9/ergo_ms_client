@@ -1093,6 +1093,14 @@
         "title": "Детали анализа",
         "requiresAuth": true
       }
+    },
+    "ProjectRoleManagement": {
+      "path": "/crm/project-management/roles",
+      "component": "@/modules/crm/project-management/ProjectRoleManagement.vue",
+      "meta": {
+        "title": "Управление ролями",
+        "requiresAuth": true
+      }
     }
   }
 } 

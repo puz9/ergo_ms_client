@@ -107,6 +107,22 @@
                   </div>
                 </div>
               </div>
+              
+              <!-- Дополнительные поля -->
+              <div class="string-fields-section" v-if="project.string_fields && project.string_fields.length > 0">
+                <div class="section-title">
+                  <List :size="16" />
+                  <span>Дополнительные поля</span>
+                </div>
+                <div class="string-fields-list">
+                  <div v-for="(field, index) in project.string_fields" :key="field.id" class="string-field-item">
+                    <div class="string-field-content">
+                      <span class="field-number">{{ index + 1 }}.</span>
+                      <span class="field-value">{{ field.value }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -267,6 +283,7 @@
                     <th>Статус</th>
                     <th>Приоритет</th>
                     <th>Срок</th>
+                    <th>Файлы</th>
                     <th>Действия</th>
                   </tr>
                 </thead>
@@ -305,8 +322,20 @@
                         {{ formatDate(task.due_date) || '-' }}
                       </span>
                     </td>
+                    <td class="attachments-cell">
+                      <div v-if="task.attachment_count > 0" class="attachments-info">
+                        <i class="fas fa-paperclip text-primary me-1"></i>
+                        <span class="attachment-count">{{ task.attachment_count }}</span>
+                      </div>
+                      <span v-else class="text-muted">
+                        <i class="fas fa-paperclip"></i>
+                      </span>
+                    </td>
                     <td class="actions-cell">
                       <div class="action-buttons">
+                        <button class="btn btn-view-icon" @click="viewTask(task)" title="Просмотреть">
+                          <i class="fas fa-eye"></i>
+                        </button>
                         <button class="btn btn-edit-icon" @click="editTask(task)" title="Редактировать">
                           <Edit :size="14" />
                         </button>
@@ -322,6 +351,48 @@
           </div>
         </div>
       </div>
+      
+      <!-- Секция файлов проекта -->
+      <div class="project-files-section" v-if="project && project.attachments && project.attachments.length > 0">
+        <div class="section-header">
+          <div class="section-title">
+            <Paperclip class="me-3" :size="24" />
+            <h2>Файлы проекта</h2>
+          </div>
+        </div>
+        
+        <div class="files-content">
+          <div class="files-grid">
+            <div v-for="file in project.attachments" :key="file.id" class="file-card">
+              <div class="file-icon">
+                <FileText class="text-primary" :size="32" />
+              </div>
+              <div class="file-info">
+                <h6 class="file-name">
+                  <a :href="file.file" target="_blank" class="text-decoration-none">
+                    {{ file.filename }}
+                  </a>
+                </h6>
+                <small class="text-muted">
+                  Загружен {{ formatDateTime(file.uploaded_at) }}
+                  <span v-if="file.uploaded_by"> пользователем {{ getUserDisplayName(file.uploaded_by) }}</span>
+                </small>
+              </div>
+              <div class="file-actions">
+                <button class="btn btn-sm btn-outline-primary" @click="downloadFile(file)" title="Скачать">
+                  <Download :size="14" />
+                </button>
+                <button class="btn btn-sm btn-outline-info" @click="viewFile(file)" title="Просмотреть">
+                  <Eye :size="14" />
+                </button>
+                <button class="btn btn-sm btn-outline-danger" @click="deleteProjectFile(file)" title="Удалить">
+                  <Trash2 :size="14" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Модальные окна остаются без изменений -->
@@ -329,8 +400,11 @@
     <div class="modal fade" id="projectModal" tabindex="-1" aria-labelledby="projectModalLabel" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="projectModalLabel">Редактировать проект</h5>
+          <div class="modal-header border-bottom">
+            <h5 class="modal-title" id="projectModalLabel">
+              <Edit class="me-2" :size="20" />
+              {{ isEditingProject ? 'Редактировать проект' : 'Создать проект' }}
+            </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
           </div>
           <div class="modal-body">
@@ -385,12 +459,109 @@
                 <label class="form-label">Цвет проекта</label>
                 <input type="color" class="form-control form-control-color" v-model="currentProject.color">
               </div>
+              
+              <!-- Существующие файлы (только при редактировании) -->
+              <div v-if="isEditingProject && currentProject.attachments && currentProject.attachments.length > 0" class="mb-4">
+                <label class="form-label fw-bold">
+                  <Paperclip class="me-2" :size="16" />
+                  Текущие вложения
+                </label>
+                <div class="list-group">
+                  <div v-for="file in currentProject.attachments" :key="file.id" class="list-group-item d-flex align-items-center">
+                    <FileText class="text-primary me-2" :size="16" />
+                    <a :href="file.file" target="_blank" class="flex-grow-1 text-decoration-none">
+                      {{ file.filename }}
+                    </a>
+                    <small class="text-muted me-2">({{ formatDateTime(file.uploaded_at) }})</small>
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeExistingProjectFile(file.id)">
+                      <X :size="14" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Загрузка новых файлов -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <Paperclip class="me-2" :size="16" />
+                  {{ isEditingProject ? 'Добавить файлы' : 'Вложения' }}
+                </label>
+                <div class="file-upload-area" 
+                     @drop="onProjectFileDrop" 
+                     @dragover.prevent 
+                     @dragenter="onProjectDragEnter"
+                     @dragleave="onProjectDragLeave"
+                     :class="{ 'drag-over': isProjectDragOver }">
+                  <div class="file-upload-content text-center p-4">
+                    <Upload class="text-muted mb-3" :size="32" />
+                    <p class="text-muted mb-2">Перетащите файлы сюда или</p>
+                    <input type="file" 
+                           ref="projectFileInput" 
+                           @change="onProjectFileSelect" 
+                           multiple 
+                           class="d-none">
+                    <button type="button" class="btn btn-outline-primary" @click="$refs.projectFileInput.click()">
+                      <FolderOpen class="me-2" :size="16" />
+                      Выбрать файлы
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Список выбранных файлов -->
+                <div v-if="selectedProjectFiles.length > 0" class="selected-files mt-3">
+                  <h6 class="text-muted mb-2">Новые файлы:</h6>
+                  <div class="list-group">
+                    <div v-for="(file, index) in selectedProjectFiles" :key="index" class="list-group-item d-flex align-items-center">
+                      <FileText class="text-primary me-2" :size="16" />
+                      <span class="flex-grow-1">{{ file.name }}</span>
+                      <small class="text-muted me-2">({{ formatFileSize(file.size) }})</small>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="removeProjectFile(index)">
+                        <X :size="14" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Строковые поля -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <List class="me-2" :size="16" />
+                  Дополнительные поля
+                </label>
+                <div class="string-fields-container">
+                  <div v-for="(field, index) in currentProject.string_fields" :key="field.id" class="string-field-item mb-2">
+                    <div class="input-group">
+                      <input type="text" 
+                             class="form-control" 
+                             v-model="field.value" 
+                             :placeholder="`Поле ${index + 1}`"
+                             @blur="updateStringField(field)">
+                      <button type="button" 
+                              class="btn btn-outline-danger" 
+                              @click="removeStringField(field.id, index)"
+                              title="Удалить поле">
+                        <X :size="14" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <button type="button" 
+                          class="btn btn-outline-primary btn-sm" 
+                          @click="addStringField"
+                          title="Добавить поле">
+                    <Plus class="me-1" :size="14" />
+                    Добавить поле
+                  </button>
+                </div>
+              </div>
             </form>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отменить</button>
             <button type="button" class="btn btn-primary" @click="submitProject" :disabled="!currentProject.name">
-              Сохранить
+              <Save class="me-2" :size="16" />
+              {{ isEditingProject ? 'Сохранить' : 'Создать' }}
             </button>
           </div>
         </div>
@@ -400,91 +571,175 @@
     <!-- Модальное окно создания/редактирования задачи -->
     <div class="modal fade" id="taskModal" tabindex="-1" aria-labelledby="taskModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
+        <div class="modal-content border-0">
+          <div class="modal-header border-bottom">
             <h5 class="modal-title" id="taskModalLabel">
+              <i class="fas fa-tasks me-2"></i>
               {{ isEditingTask ? 'Редактировать задачу' : 'Создать задачу' }}
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body p-4">
             <form @submit.prevent="submitTask">
-              <div class="row">
+              <div class="row g-3 mb-4">
                 <div class="col-md-8">
-                  <div class="mb-3">
-                    <label class="form-label">Название задачи *</label>
-                    <input type="text" class="form-control" v-model="currentTask.title" required>
-                  </div>
+                  <label class="form-label fw-bold">Название задачи <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" v-model="currentTask.title" required
+                         placeholder="Введите название задачи">
                 </div>
                 <div class="col-md-4">
-                  <div class="mb-3">
-                    <label class="form-label">Исполнитель</label>
-                    <select class="form-select" v-model="currentTask.assignee_id">
-                      <option value="">Не назначен</option>
-                      <option v-for="user in users" :key="user.id" :value="user.id">
-                        {{ getUserDisplayName(user) }}
-                      </option>
-                    </select>
-                  </div>
+                  <label class="form-label fw-bold">Исполнитель</label>
+                  <select class="form-select" v-model="currentTask.assignee_id">
+                    <option value="">Не назначен</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">
+                      {{ getUserDisplayName(user) }}
+                    </option>
+                  </select>
                 </div>
               </div>
               
-              <div class="mb-3">
-                <label class="form-label">Описание</label>
-                <textarea class="form-control" rows="3" v-model="currentTask.description"></textarea>
+              <div class="mb-4">
+                <label class="form-label fw-bold">Описание</label>
+                <textarea class="form-control" rows="3" v-model="currentTask.description"
+                          placeholder="Опишите задачу подробнее"></textarea>
               </div>
               
-              <div class="row">
+              <div class="row g-3 mb-4">
                 <div class="col-md-6">
-                  <div class="mb-3">
-                    <label class="form-label">Статус</label>
-                    <select class="form-select" v-model="currentTask.status" :disabled="loadingStatuses">
-                      <option v-if="loadingStatuses">Загрузка...</option>
-                      <option v-else v-for="status in taskStatuses" :key="status.id" :value="status.code">
-                        {{ status.name }}
-                      </option>
-                    </select>
-                  </div>
+                  <label class="form-label fw-bold">Статус</label>
+                  <select class="form-select" v-model="currentTask.status" :disabled="loadingStatuses">
+                    <option v-if="loadingStatuses">Загрузка...</option>
+                    <option v-else v-for="status in taskStatuses" :key="status.id" :value="status.code">
+                      {{ status.name }}
+                    </option>
+                  </select>
                 </div>
                 <div class="col-md-6">
-                  <div class="mb-3">
-                    <label class="form-label">Приоритет</label>
-                    <select class="form-select" v-model="currentTask.priority" :disabled="loadingStatuses">
-                      <option v-if="loadingStatuses">Загрузка...</option>
-                      <option v-else v-for="priority in taskPriorities" :key="priority.id" :value="priority.code">
-                        {{ priority.name }}
-                      </option>
-                    </select>
+                  <label class="form-label fw-bold">Приоритет</label>
+                  <select class="form-select" v-model="currentTask.priority" :disabled="loadingStatuses">
+                    <option v-if="loadingStatuses">Загрузка...</option>
+                    <option v-else v-for="priority in taskPriorities" :key="priority.id" :value="priority.code">
+                      {{ priority.name }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Дата начала</label>
+                  <input type="datetime-local" class="form-control" v-model="currentTask.start_date">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Срок выполнения</label>
+                  <input type="datetime-local" class="form-control" v-model="currentTask.due_date">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Оценка времени (часы)</label>
+                  <input type="number" class="form-control" step="0.5" v-model="currentTask.estimated_hours"
+                         placeholder="Сколько часов потребуется">
+                </div>
+              </div>
+              
+              <!-- Существующие файлы (только при редактировании) -->
+              <div v-if="isEditingTask && currentTask.attachments && currentTask.attachments.length > 0" class="mb-4">
+                <label class="form-label fw-bold">
+                  <i class="fas fa-paperclip me-2"></i>Текущие вложения
+                </label>
+                <div class="list-group">
+                  <div v-for="file in currentTask.attachments" :key="file.id" class="list-group-item d-flex align-items-center">
+                    <i class="fas fa-file-alt text-primary me-2"></i>
+                    <a :href="file.file" target="_blank" class="flex-grow-1 text-decoration-none">
+                      {{ file.filename }}
+                    </a>
+                    <small class="text-muted me-2">({{ formatDateTime(file.uploaded_at) }})</small>
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeExistingFile(file.id)">
+                      <i class="fas fa-times"></i>
+                    </button>
                   </div>
                 </div>
               </div>
               
-              <div class="row">
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <label class="form-label">Дата начала</label>
-                    <input type="datetime-local" class="form-control" v-model="currentTask.start_date">
+              <!-- Загрузка новых файлов -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <i class="fas fa-paperclip me-2"></i>{{ isEditingTask ? 'Добавить файлы' : 'Вложения' }}
+                </label>
+                <div class="file-upload-area" 
+                     @drop="onFileDrop" 
+                     @dragover.prevent 
+                     @dragenter="onDragEnter"
+                     @dragleave="onDragLeave"
+                     :class="{ 'drag-over': isDragOver }">
+                  <div class="file-upload-content text-center p-4">
+                    <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-3"></i>
+                    <p class="text-muted mb-2">Перетащите файлы сюда или</p>
+                    <input type="file" 
+                           ref="fileInput" 
+                           @change="onFileSelect" 
+                           multiple 
+                           class="d-none">
+                    <button type="button" class="btn btn-outline-primary" @click="$refs.fileInput.click()">
+                      <i class="fas fa-folder-open me-2"></i>Выбрать файлы
+                    </button>
                   </div>
                 </div>
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <label class="form-label">Срок выполнения</label>
-                    <input type="datetime-local" class="form-control" v-model="currentTask.due_date">
+                
+                <!-- Список выбранных файлов -->
+                <div v-if="selectedFiles.length > 0" class="selected-files mt-3">
+                  <h6 class="text-muted mb-2">Новые файлы:</h6>
+                  <div class="list-group">
+                    <div v-for="(file, index) in selectedFiles" :key="index" class="list-group-item d-flex align-items-center">
+                      <i class="fas fa-file-alt text-primary me-2"></i>
+                      <span class="flex-grow-1">{{ file.name }}</span>
+                      <small class="text-muted me-2">({{ formatFileSize(file.size) }})</small>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="removeFile(index)">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <label class="form-label">Оценка времени (часы)</label>
-                    <input type="number" class="form-control" step="0.5" v-model="currentTask.estimated_hours">
+              </div>
+              
+              <!-- Дополнительные поля -->
+              <div class="mb-4">
+                <label class="form-label fw-bold">
+                  <List class="me-2" :size="16" />
+                  Дополнительные поля
+                </label>
+                <div class="string-fields-container">
+                  <div v-for="(field, index) in currentTask.string_fields" :key="field.id" class="string-field-item mb-2">
+                    <div class="input-group">
+                      <input type="text"
+                             class="form-control"
+                             v-model="field.value"
+                             :placeholder="`Поле ${index + 1}`"
+                             @blur="updateTaskStringField(field)">
+                      <button type="button"
+                              class="btn btn-outline-danger"
+                              @click="removeTaskStringField(field.id, index)"
+                              title="Удалить поле">
+                        <X :size="14" />
+                      </button>
+                    </div>
                   </div>
+
+                  <button type="button"
+                          class="btn btn-outline-primary btn-sm"
+                          @click="addTaskStringField"
+                          title="Добавить поле">
+                    <Plus class="me-1" :size="14" />
+                    Добавить поле
+                  </button>
                 </div>
               </div>
             </form>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отменить</button>
-            <button type="button" class="btn btn-primary" @click="submitTask" :disabled="!currentTask.title">
-              {{ isEditingTask ? 'Сохранить' : 'Создать задачу' }}
+          <div class="modal-footer border-top">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отменить</button>
+            <button type="button" class="btn btn-primary" @click="submitTask" 
+                    :disabled="!currentTask.title">
+              <i class="fas fa-save me-2"></i>{{ isEditingTask ? 'Сохранить' : 'Создать' }}
             </button>
           </div>
         </div>
@@ -518,9 +773,10 @@
                   <div class="mb-3">
                     <label class="form-label">Роль в проекте</label>
                     <select class="form-select" v-model="selectedRole">
-                      <option value="member">Участник</option>
-                      <option value="lead">Ведущий</option>
-                      <option value="observer">Наблюдатель</option>
+                      <option value="">Выберите роль</option>
+                      <option v-for="role in projectRoles" :key="role.id" :value="role.id">
+                        {{ role.name }}
+                      </option>
                     </select>
                   </div>
                   <button class="btn btn-primary" 
@@ -588,12 +844,230 @@
         </div>
       </div>
     </div>
+
+    <!-- Модальное окно просмотра задачи -->
+    <div class="modal fade" id="taskViewModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0">
+          <div class="modal-header bg-light border-bottom">
+            <div class="d-flex align-items-center gap-3 w-100">
+              <div class="icon-wrapper bg-primary bg-opacity-10 p-2 rounded-circle flex-shrink-0">
+                <i class="fas fa-clipboard-check fa-lg text-primary"></i>
+              </div>
+              <div class="flex-grow-1 overflow-hidden">
+                <h5 class="modal-title mb-0 text-truncate" :title="selectedTask.title">{{ selectedTask.title }}</h5>
+              </div>
+            </div>
+            <button type="button" class="btn-close flex-shrink-0 ms-3" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="task-view-content">
+              <!-- Статус и приоритет -->
+              <div class="mb-4 d-flex gap-3">
+                <span class="badge rounded-pill px-3 py-2" :class="getTaskStatusClass(selectedTask.status)">
+                  <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>
+                  {{ getTaskStatusText(selectedTask.status) }}
+                </span>
+                <span class="badge rounded-pill px-3 py-2" :class="getPriorityClass(selectedTask.priority)">
+                  <i class="fas fa-flag me-1"></i>
+                  {{ getPriorityText(selectedTask.priority) }}
+                </span>
+              </div>
+
+              <!-- Описание -->
+              <div class="description-section mb-4 p-3 bg-light rounded" v-if="selectedTask.description">
+                <h6 class="text-uppercase text-muted small mb-2">
+                  <i class="fas fa-align-left me-2"></i>Описание
+                </h6>
+                <p class="mb-0 text-dark">{{ selectedTask.description }}</p>
+              </div>
+
+              <!-- Вложения -->
+              <div class="attachments-section mb-4 p-3 bg-light rounded" v-if="selectedTask.attachments && selectedTask.attachments.length">
+                <h6 class="text-uppercase text-muted small mb-2">
+                  <i class="fas fa-paperclip me-2"></i>Вложения
+                </h6>
+                <ul class="list-unstyled mb-0">
+                  <li v-for="file in selectedTask.attachments" :key="file.id" class="d-flex align-items-center mb-2">
+                    <a :href="file.file" target="_blank" class="me-2 text-primary text-decoration-underline">
+                      <i class="fas fa-file-alt me-1"></i>{{ file.filename }}
+                    </a>
+                    <span class="text-muted small me-2">({{ formatDateTime(file.uploaded_at) }})</span>
+                    <button class="btn btn-sm btn-outline-danger ms-auto" @click="deleteAttachment(file)" title="Удалить файл">
+                      <Trash2 :size="16" />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Дополнительные поля -->
+              <div class="string-fields-section mb-4 p-3 bg-light rounded" v-if="selectedTask.string_fields && selectedTask.string_fields.length > 0">
+                <h6 class="text-uppercase text-muted small mb-2">
+                  <List class="me-2" :size="16" />
+                  Дополнительные поля
+                </h6>
+                <div class="string-fields-list">
+                  <div v-for="(field, index) in selectedTask.string_fields" :key="field.id" class="string-field-item">
+                    <div class="string-field-content">
+                      <span class="field-number">{{ index + 1 }}.</span>
+                      <span class="field-value">{{ field.value }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Основная информация в карточках -->
+              <div class="row g-3 mb-4">
+                <!-- Исполнитель -->
+                <div class="col-md-6">
+                  <div class="info-card h-100 p-3 border rounded">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="icon-sm bg-success bg-opacity-10 p-2 rounded me-2">
+                        <i class="fas fa-user text-success"></i>
+                      </div>
+                      <h6 class="mb-0 text-muted small">
+                        <i class="fas fa-user-check me-1"></i>ИСПОЛНИТЕЛЬ
+                      </h6>
+                    </div>
+                    <div class="d-flex align-items-center" v-if="selectedTask.assignee">
+                      <img :src="getAvatarUrl(selectedTask.assignee)" 
+                           :alt="getUserDisplayName(selectedTask.assignee)"
+                           class="rounded-circle me-2"
+                           style="width: 32px; height: 32px; object-fit: cover;">
+                      <div class="fw-bold text-dark">
+                        {{ getUserDisplayName(selectedTask.assignee) }}
+                      </div>
+                    </div>
+                    <div v-else class="fw-bold text-muted">
+                      <i class="fas fa-user-slash me-2"></i>Не назначен
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Создатель -->
+                <div class="col-md-6" v-if="selectedTask.creator">
+                  <div class="info-card h-100 p-3 border rounded">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="icon-sm bg-info bg-opacity-10 p-2 rounded me-2">
+                        <i class="fas fa-user-plus text-info"></i>
+                      </div>
+                      <h6 class="mb-0 text-muted small">
+                        <i class="fas fa-user-plus me-1"></i>СОЗДАТЕЛЬ
+                      </h6>
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <img :src="getAvatarUrl(selectedTask.creator)" 
+                           :alt="getUserDisplayName(selectedTask.creator)"
+                           class="rounded-circle me-2"
+                           style="width: 32px; height: 32px; object-fit: cover;">
+                      <div class="fw-bold text-dark">
+                        {{ getUserDisplayName(selectedTask.creator) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Даты и время -->
+              <div class="row g-3 mb-4">
+                <!-- Сроки -->
+                <div class="col-md-6">
+                  <div class="info-card h-100 p-3 border rounded">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="icon-sm bg-warning bg-opacity-10 p-2 rounded me-2">
+                        <i class="fas fa-calendar-alt text-warning"></i>
+                      </div>
+                      <h6 class="mb-0 text-muted small">
+                        <i class="fas fa-calendar-check me-1"></i>СРОКИ
+                      </h6>
+                    </div>
+                    <div v-if="selectedTask.due_date">
+                      <div class="mb-1">
+                        <small class="text-muted">
+                          <i class="fas fa-hourglass-end me-1"></i>Срок выполнения:
+                        </small>
+                      </div>
+                      <div class="fw-bold" :class="getDueDateClass(selectedTask.due_date, selectedTask.status)">
+                        <i class="fas fa-calendar-day me-1"></i>
+                        {{ formatDateTime(selectedTask.due_date) }}
+                      </div>
+                    </div>
+                    <div v-else class="fw-bold text-muted">
+                      <i class="fas fa-calendar-times me-2"></i>Срок не установлен
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Время -->
+                <div class="col-md-6" v-if="selectedTask.estimated_hours || selectedTask.actual_hours">
+                  <div class="info-card h-100 p-3 border rounded">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="icon-sm bg-info bg-opacity-10 p-2 rounded me-2">
+                        <i class="fas fa-clock text-info"></i>
+                      </div>
+                      <h6 class="mb-0 text-muted small">
+                        <i class="fas fa-hourglass-half me-1"></i>ВРЕМЯ
+                      </h6>
+                    </div>
+                    <div class="d-flex justify-content-around">
+                      <div v-if="selectedTask.estimated_hours" class="text-center">
+                        <div class="fw-bold text-info">
+                          <i class="fas fa-hourglass-start me-1"></i>{{ selectedTask.estimated_hours }}ч
+                        </div>
+                        <small class="text-muted">Оценка</small>
+                      </div>
+                      <div v-if="selectedTask.actual_hours" class="text-center">
+                        <div class="fw-bold text-success">
+                          <i class="fas fa-business-time me-1"></i>{{ selectedTask.actual_hours }}ч
+                        </div>
+                        <small class="text-muted">Потрачено</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Метаинформация -->
+              <div class="meta-info p-3 bg-light rounded">
+                <div class="row g-3">
+                  <div class="col-6">
+                    <small class="text-muted d-block mb-1">
+                      <i class="fas fa-plus-circle me-1"></i>Создана
+                    </small>
+                    <div class="small">
+                      {{ formatDateTime(selectedTask.created_at) }}
+                      <span v-if="selectedTask.creator" class="text-muted">
+                        ({{ getUserDisplayName(selectedTask.creator) }})
+                      </span>
+                    </div>
+                  </div>
+                  <div class="col-6" v-if="selectedTask.updated_at">
+                    <small class="text-muted d-block mb-1">
+                      <i class="fas fa-edit me-1"></i>Обновлена
+                    </small>
+                    <div class="small">{{ formatDateTime(selectedTask.updated_at) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-top">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times me-2"></i>Закрыть
+            </button>
+            <button @click="editTaskFromView" class="btn btn-primary">
+              <i class="fas fa-edit me-2"></i>Редактировать
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { Modal } from 'bootstrap'
-import { Edit, Trash2, Plus, Home, Info, PieChart, ListTodo, Calendar, Clock, Users, CheckCircle, AlertTriangle, UserPlus, UserMinus } from 'lucide-vue-next'
+import { Edit, Trash2, Plus, Home, Info, PieChart, ListTodo, Calendar, Clock, Users, CheckCircle, AlertTriangle, UserPlus, UserMinus, Download, Eye, Paperclip, FileText, X, FolderOpen, Upload, Save, List } from 'lucide-vue-next'
 import projectManagementApi from '@/modules/crm/project-management/js/projectManagementApi.js'
 import { useNotifications } from '@/modules/lms/composables/useNotifications'
 import { getAvatarUrl } from '@/modules/cms/js/avatarUtils.js'
@@ -614,7 +1088,16 @@ export default {
     CheckCircle,
     AlertTriangle,
     UserPlus,
-    UserMinus
+    UserMinus,
+    Download,
+    Eye,
+    Paperclip,
+    FileText,
+    X,
+    FolderOpen,
+    Upload,
+    Save,
+    List
   },
   setup() {
     const { showSuccess, showError, showConfirmDialog, closeConfirmDialog } = useNotifications()
@@ -635,7 +1118,8 @@ export default {
         priority: 'medium',
         start_date: '',
         due_date: '',
-        estimated_hours: null
+        estimated_hours: null,
+        string_fields: []
       },
       currentProject: {
         name: '',
@@ -644,7 +1128,8 @@ export default {
         end_date: '',
         status: 'planning',
         priority: 'medium',
-        color: '#007bff'
+        color: '#007bff',
+        string_fields: []
       },
       isEditingTask: false,
       isEditingProject: false,
@@ -656,14 +1141,24 @@ export default {
       loadingStatuses: false,
       // Управление командой проекта
       selectedUserId: '',
-      selectedRole: 'member',
-      loadingTeamAction: false
+      selectedRole: '',
+      loadingTeamAction: false,
+      projectRoles: [], // список ролей из API
+      selectedFiles: [],
+      isDragOver: false,
+      originalAttachments: [], // Для хранения исходного списка файлов при редактировании
+      selectedTask: {}, // Для модального окна просмотра задачи
+      selectedProjectFiles: [],
+      isProjectDragOver: false,
+      originalProjectAttachments: [], // Для хранения исходного списка файлов проекта при редактировании
+      newStringFields: [] // Для хранения новых строковых полей
     }
   },
   async mounted() {
     await Promise.all([
       this.loadUsers(),
-      this.loadStatusesAndPriorities()
+      this.loadStatusesAndPriorities(),
+      this.loadProjectRoles() // загрузка ролей
     ])
     this.loadProjectData()
   },
@@ -915,10 +1410,28 @@ export default {
       }
     },
 
+    async loadProjectRoles() {
+      try {
+        const res = await projectManagementApi.getProjectRoles()
+        this.projectRoles = res.data
+      } catch (e) {
+        this.projectRoles = []
+      }
+    },
+
+    async refreshStatusesAndPriorities() {
+      // Обновляем статусы и приоритеты если они еще не загружены
+      if (this.taskStatuses.length === 0 || this.taskPriorities.length === 0) {
+        await this.loadStatusesAndPriorities()
+      }
+    },
+
     editProject() {
       if (!this.project) return
       
       this.isEditingProject = true
+      
+      // Загружаем полную информацию о проекте с вложениями и строковыми полями
       this.currentProject = {
         id: this.project.id,
         name: this.project.name,
@@ -927,51 +1440,98 @@ export default {
         end_date: this.project.end_date || '',
         status: this.project.status,
         priority: this.project.priority,
-        color: this.project.color
+        color: this.project.color,
+        status_ref_id: this.project.status_ref_id || null,
+        priority_ref_id: this.project.priority_ref_id || null,
+        attachments: this.project.attachments || [], // Загружаем существующие вложения
+        string_fields: this.project.string_fields || [] // Загружаем существующие строковые поля
       }
+      
+      // Сохраняем исходный список файлов
+      this.originalProjectAttachments = [...(this.project.attachments || [])]
+      
+      // Очищаем выбранные файлы
+      this.selectedProjectFiles = []
       
       const modal = new Modal(document.getElementById('projectModal'))
       modal.show()
     },
 
-    createTask() {
-      if (!this.project) return
+    async createTask() {
+      this.isEditingTask = false
+      
+      // Обновляем статусы и приоритеты перед созданием задачи
+      await this.refreshStatusesAndPriorities()
       
       // Устанавливаем значения по умолчанию из загруженных данных
-      const defaultTaskStatus = this.taskStatuses.find(s => s.is_default) || this.taskStatuses[0]
-      const defaultTaskPriority = this.taskPriorities.find(p => p.is_default) || this.taskPriorities[0]
+      const defaultStatus = this.taskStatuses.find(s => s.is_default) || this.taskStatuses[0]
+      const defaultPriority = this.taskPriorities.find(p => p.is_default) || this.taskPriorities[0]
       
-      this.isEditingTask = false
       this.currentTask = {
         title: '',
         description: '',
-        project_id: this.project.id,
         assignee_id: '',
-        status: defaultTaskStatus ? defaultTaskStatus.code : 'todo',
-        priority: defaultTaskPriority ? defaultTaskPriority.code : 'medium',
+        status: defaultStatus ? defaultStatus.code : 'todo',
+        priority: defaultPriority ? defaultPriority.code : 'medium',
         start_date: '',
         due_date: '',
-        estimated_hours: null
+        estimated_hours: null,
+        string_fields: []
       }
+      
+      // Очищаем выбранные файлы
+      this.selectedFiles = []
+      this.originalAttachments = []
       
       const modal = new Modal(document.getElementById('taskModal'))
       modal.show()
     },
-
-    editTask(task) {
+    
+    async editTask(task) {
       this.isEditingTask = true
-      this.currentTask = {
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        project_id: task.project?.id || this.project.id,
-        assignee_id: task.assignee?.id || '',
-        status: task.status,
-        priority: task.priority,
-        start_date: task.start_date ? this.formatDateTimeLocal(new Date(task.start_date)) : '',
-        due_date: task.due_date ? this.formatDateTimeLocal(new Date(task.due_date)) : '',
-        estimated_hours: task.estimated_hours
+      
+      try {
+        // Загружаем полную информацию о задаче с вложениями
+        const response = await projectManagementApi.getTask(task.id)
+        const fullTask = response.data
+        
+        this.currentTask = {
+          id: fullTask.id,
+          title: fullTask.title,
+          description: fullTask.description,
+          assignee_id: fullTask.assignee?.id,
+          status: fullTask.status,
+          priority: fullTask.priority,
+          start_date: fullTask.start_date ? this.formatDateTimeLocal(new Date(fullTask.start_date)) : '',
+          due_date: fullTask.due_date ? this.formatDateTimeLocal(new Date(fullTask.due_date)) : '',
+          estimated_hours: fullTask.estimated_hours,
+          attachments: fullTask.attachments || [], // Загружаем существующие вложения
+          string_fields: fullTask.string_fields || [] // Загружаем дополнительные поля
+        }
+        
+        // Сохраняем исходный список файлов
+        this.originalAttachments = [...(fullTask.attachments || [])]
+      } catch (error) {
+        console.error('Ошибка загрузки задачи:', error)
+        // Fallback к данным из списка
+        this.currentTask = {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          assignee_id: task.assignee?.id,
+          status: task.status,
+          priority: task.priority,
+          start_date: task.start_date ? this.formatDateTimeLocal(new Date(task.start_date)) : '',
+          due_date: task.due_date ? this.formatDateTimeLocal(new Date(task.due_date)) : '',
+          estimated_hours: task.estimated_hours,
+          attachments: task.attachments || [],
+          string_fields: task.string_fields || []
+        }
+        this.originalAttachments = [...(task.attachments || [])]
       }
+      
+      // Очищаем выбранные файлы при редактировании
+      this.selectedFiles = []
       
       const modal = new Modal(document.getElementById('taskModal'))
       modal.show()
@@ -983,101 +1543,137 @@ export default {
 
     async submitProject() {
       try {
-        // Подготавливаем данные проекта
+        // Подготавливаем данные проекта, исключая attachments
         const projectData = {
-          ...this.currentProject,
-          // Конвертируем пустые строки в null для дат
+          id: this.currentProject.id,
+          name: this.currentProject.name,
+          description: this.currentProject.description,
           start_date: this.currentProject.start_date || null,
-          end_date: this.currentProject.end_date || null
+          end_date: this.currentProject.end_date || null,
+          status: this.currentProject.status,
+          priority: this.currentProject.priority,
+          color: this.currentProject.color,
+          // Добавляем новые поля для статусов и приоритетов
+          status_ref_id: this.currentProject.status_ref_id || null,
+          priority_ref_id: this.currentProject.priority_ref_id || null
         }
         
-        await projectManagementApi.updateProject(projectData.id, projectData)
+        console.log('Отправляемые данные проекта:', projectData)
         
-        // Закрываем модальное окно
-        const modal = Modal.getInstance(document.getElementById('projectModal'))
-        if (modal) {
-          modal.hide()
-        }
+        const response = await projectManagementApi.updateProject(projectData.id, projectData)
         
-        // Перезагружаем данные проекта
-        await this.loadProjectData()
+        // Удаляем файлы, которые были убраны из списка
+        const removedFiles = this.originalProjectAttachments.filter(file => 
+          !this.currentProject.attachments.find(current => current.id === file.id)
+        )
         
-        this.showSuccess('Проект успешно обновлен!')
-      } catch (error) {
-        console.error('Ошибка обновления проекта:', error)
-        
-        let errorMessage = 'Ошибка обновления проекта'
-        if (error.response?.data) {
-          if (typeof error.response.data === 'object') {
-            const errors = []
-            for (const [field, messages] of Object.entries(error.response.data)) {
-              if (Array.isArray(messages)) {
-                errors.push(`${field}: ${messages.join(', ')}`)
-              } else {
-                errors.push(`${field}: ${messages}`)
-              }
-            }
-            if (errors.length > 0) {
-              errorMessage += ':\n' + errors.join('\n')
-            }
-          } else {
-            errorMessage += ': ' + error.response.data
+        for (const file of removedFiles) {
+          try {
+            await projectManagementApi.deleteProjectAttachment(file.id)
+          } catch (error) {
+            console.error('Ошибка удаления файла проекта:', error)
           }
         }
         
-        this.showError(errorMessage)
+        // Загружаем новые файлы
+        if (this.selectedProjectFiles.length > 0) {
+          await this.uploadProjectFiles(this.currentProject.id)
+        }
+        
+        // Создаем новые строковые поля
+        const newStringFields = this.currentProject.string_fields.filter(field => field.is_new)
+        for (const field of newStringFields) {
+          try {
+            await projectManagementApi.createProjectStringField({
+              project: this.currentProject.id,
+              value: field.value,
+              order: field.order
+            })
+          } catch (error) {
+            console.error('Ошибка создания строкового поля:', error)
+          }
+        }
+        
+        // Закрываем модальное окно
+        const modal = Modal.getInstance(document.getElementById('projectModal'))
+        if (modal) modal.hide()
+        
+        // Перезагружаем данные
+        this.loadProjectData()
+        
+        this.showSuccess('Проект обновлен')
+      } catch (error) {
+        console.error('Ошибка обновления проекта:', error)
+        console.error('Детали ошибки:', error.response?.data)
+        this.showError('Ошибка обновления проекта')
       }
     },
 
     async submitTask() {
       try {
-        // Подготавливаем данные задачи, конвертируя пустые строки в null
+        // Подготавливаем данные задачи
         const taskData = {
           ...this.currentTask,
-          project_id: this.currentTask.project_id || null,
+          project_id: this.project.id, // Всегда устанавливаем project_id
           assignee_id: this.currentTask.assignee_id || null,
           start_date: this.currentTask.start_date || null,
           due_date: this.currentTask.due_date || null,
           estimated_hours: this.currentTask.estimated_hours || null
         }
         
+        let taskId
         if (this.isEditingTask) {
-          await projectManagementApi.updateTask(taskData.id, taskData)
+          const response = await projectManagementApi.updateTask(taskData.id, taskData)
+          taskId = taskData.id
+          
+          // Удаляем файлы, которые были убраны из списка
+          const removedFiles = this.originalAttachments.filter(file => 
+            !this.currentTask.attachments.find(current => current.id === file.id)
+          )
+          
+          for (const file of removedFiles) {
+            try {
+              await projectManagementApi.deleteTaskAttachment(file.id)
+            } catch (error) {
+              console.error('Ошибка удаления файла:', error)
+            }
+          }
         } else {
-          await projectManagementApi.createTask(taskData)
+          const response = await projectManagementApi.createTask(taskData)
+          taskId = response.data.id
+        }
+        
+        // Загружаем новые файлы
+        if (this.selectedFiles.length > 0) {
+          await this.uploadTaskFiles(taskId)
+        }
+        
+        // Обработка дополнительных полей
+        // Создаем новые поля
+        const newStringFieldsToCreate = this.currentTask.string_fields.filter(field => field.is_new)
+        for (const field of newStringFieldsToCreate) {
+          try {
+            await projectManagementApi.createTaskStringField({
+              task: taskId,
+              value: field.value,
+              order: field.order
+            })
+          } catch (error) {
+            console.error('Ошибка создания нового строкового поля:', error)
+          }
         }
         
         // Закрываем модальное окно
         const modal = Modal.getInstance(document.getElementById('taskModal'))
         if (modal) modal.hide()
         
-        // Перезагружаем данные проекта
-        await this.loadProjectData()
+        // Перезагружаем данные
+        this.loadProjectData()
         
         this.showSuccess(this.isEditingTask ? 'Задача обновлена' : 'Задача создана')
       } catch (error) {
         console.error('Ошибка сохранения задачи:', error)
-        
-        let errorMessage = 'Ошибка сохранения задачи'
-        if (error.response?.data) {
-          if (typeof error.response.data === 'object') {
-            const errors = []
-            for (const [field, messages] of Object.entries(error.response.data)) {
-              if (Array.isArray(messages)) {
-                errors.push(`${field}: ${messages.join(', ')}`)
-              } else {
-                errors.push(`${field}: ${messages}`)
-              }
-            }
-            if (errors.length > 0) {
-              errorMessage += ':\n' + errors.join('\n')
-            }
-          } else {
-            errorMessage += ': ' + error.response.data
-          }
-        }
-        
-        this.showError(errorMessage)
+        this.showError('Ошибка сохранения задачи')
       }
     },
 
@@ -1146,20 +1742,25 @@ export default {
     },
 
     getTaskStatusClass(status) {
-      const classes = {
+      const statusMap = {
         'todo': 'bg-secondary',
-        'in_progress': 'bg-warning',
-        'review': 'bg-info',
+        'in_progress': 'bg-primary',
+        'review': 'bg-warning',
         'done': 'bg-success',
         'cancelled': 'bg-danger'
       }
-      return classes[status] || 'bg-secondary'
+      return statusMap[status] || 'bg-secondary'
     },
 
     getTaskStatusText(status) {
-      if (!status) return 'Не указан'
-      const statusObj = this.taskStatuses?.find(s => s.code === status)
-      return statusObj?.name || status
+      const statusMap = {
+        'todo': 'К выполнению',
+        'in_progress': 'В работе',
+        'review': 'На проверке',
+        'done': 'Выполнено',
+        'cancelled': 'Отменено'
+      }
+      return statusMap[status] || status
     },
 
     getPriorityClass(priority) {
@@ -1214,28 +1815,42 @@ export default {
     },
 
     truncateText(text, maxLength) {
-      if (!text || typeof text !== 'string') return ''
-      if (text.length > maxLength) {
-        return text.slice(0, maxLength) + '...'
-      }
-      return text
+      if (!text) return ''
+      return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
     },
 
     getDueDateClass(dueDate, status) {
-      if (!dueDate) return ''
-      const date = new Date(dueDate)
-      const today = new Date()
-      const diffInDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24))
+      if (!dueDate) return 'text-muted'
+      
+      const now = new Date()
+      const due = new Date(dueDate)
+      
+      if (status === 'done') return 'text-success'
+      if (due < now) return 'text-danger'
+      if (due.getTime() - now.getTime() < 24 * 60 * 60 * 1000) return 'text-warning'
+      
+      return 'text-dark'
+    },
 
-      if (diffInDays < 0) {
-        return 'text-danger'
-      } else if (diffInDays === 0 && status === 'todo') {
-        return 'text-warning'
-      } else if (diffInDays <= 7 && status === 'in_progress') {
-        return 'text-primary'
-      } else {
-        return ''
-      }
+    formatDateTime(date) {
+      if (!date) return 'Не указана'
+      return new Date(date).toLocaleDateString('ru-RU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    },
+    
+    formatDateTimeLocal(date) {
+      if (!date) return ''
+      return new Date(date).toISOString().slice(0, 16)
+    },
+    
+    truncateText(text, maxLength) {
+      if (!text) return ''
+      return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
     },
 
     getBackRoute() {
@@ -1259,14 +1874,14 @@ export default {
     // Методы для управления командой проекта
     openTeamModal() {
       this.selectedUserId = ''
-      this.selectedRole = 'member'
+      this.selectedRole = ''
       const modal = new Modal(document.getElementById('teamModal'))
       modal.show()
     },
 
     async addMember() {
-      if (!this.selectedUserId || !this.project?.id) {
-        this.showError('Пожалуйста, выберите пользователя')
+      if (!this.selectedUserId || !this.selectedRole || !this.project?.id) {
+        this.showError('Пожалуйста, выберите пользователя и роль')
         return
       }
 
@@ -1274,18 +1889,13 @@ export default {
       try {
         const memberData = {
           user_id: this.selectedUserId,
-          role: this.selectedRole
+          role_id: this.selectedRole
         }
 
         const response = await projectManagementApi.addProjectMember(this.project.id, memberData)
-        
-        // Обновляем только данные команды
         await this.refreshTeamData()
-        
-        // Сбрасываем форму
         this.selectedUserId = ''
-        this.selectedRole = 'member'
-        
+        this.selectedRole = ''
         this.showSuccess('Участник добавлен в команду проекта!')
       } catch (error) {
         console.error('Ошибка добавления участника:', error)
@@ -1410,6 +2020,295 @@ export default {
       } catch (error) {
         console.error('Ошибка обновления команды:', error)
         this.showError('Ошибка обновления данных команды')
+      }
+    },
+
+    async removeExistingFile(fileId) {
+      // Удаляем файл из списка текущих вложений
+      this.currentTask.attachments = this.currentTask.attachments.filter(file => file.id !== fileId);
+      // Файл будет физически удален при сохранении задачи
+    },
+
+    onFileDrop(event) {
+      this.isDragOver = false
+      const files = Array.from(event.dataTransfer.files)
+      this.addFiles(files)
+    },
+    
+    onFileSelect(event) {
+      const files = Array.from(event.target.files)
+      this.addFiles(files)
+      // Сбрасываем input для возможности повторного выбора тех же файлов
+      event.target.value = ''
+    },
+    
+    addFiles(files) {
+      files.forEach(file => {
+        // Проверяем, что файл еще не добавлен
+        if (!this.selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+          this.selectedFiles.push(file)
+        }
+      })
+    },
+    
+    removeFile(index) {
+      this.selectedFiles.splice(index, 1)
+    },
+    
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes'
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    },
+    
+    async uploadTaskFiles(taskId) {
+      if (this.selectedFiles.length === 0) return
+      
+      console.log('Загружаем файлы для задачи:', taskId)
+      console.log('Файлы для загрузки:', this.selectedFiles.map(f => ({ name: f.name, size: f.size })))
+      
+      const uploadPromises = this.selectedFiles.map(file => 
+        projectManagementApi.uploadTaskAttachment(file, taskId)
+      )
+      
+      try {
+        await Promise.all(uploadPromises)
+        this.selectedFiles = [] // Очищаем список после успешной загрузки
+        console.log('Файлы успешно загружены')
+      } catch (error) {
+        console.error('Ошибка загрузки файлов:', error)
+        console.error('Детали ошибки:', error.response?.data)
+        this.showError('Ошибка загрузки файлов')
+      }
+    },
+
+    onDragEnter(event) {
+      this.isDragOver = true
+    },
+    
+    onDragLeave(event) {
+      // Проверяем, что мы действительно покидаем зону, а не переходим к дочернему элементу
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        this.isDragOver = false
+      }
+    },
+
+    async viewTask(task) {
+      try {
+        // Загружаем полную информацию о задаче с вложениями
+        const response = await projectManagementApi.getTask(task.id)
+        this.selectedTask = response.data
+      } catch (error) {
+        console.error('Ошибка загрузки задачи:', error)
+        // Fallback к данным из списка
+        this.selectedTask = task
+      }
+      
+      const modal = new Modal(document.getElementById('taskViewModal'))
+      modal.show()
+    },
+
+    editTaskFromView() {
+      this.editTask(this.selectedTask)
+      
+      // Закрываем модальное окно просмотра
+      const viewModal = Modal.getInstance(document.getElementById('taskViewModal'))
+      if (viewModal) viewModal.hide()
+    },
+
+    async deleteAttachment(file) {
+      try {
+        await this.showConfirmDialog(
+          'Удалить файл?',
+          `Вы уверены, что хотите удалить файл "${file.filename}"?`
+        )
+        
+        await projectManagementApi.deleteTaskAttachment(file.id)
+        
+        // Удаляем файл из списка
+        this.selectedTask.attachments = this.selectedTask.attachments.filter(f => f.id !== file.id)
+        
+        this.showSuccess('Файл удален')
+      } catch (error) {
+        if (error !== 'cancelled') {
+          console.error('Ошибка удаления файла:', error)
+          this.showError('Ошибка удаления файла')
+        }
+      }
+    },
+
+    // Методы для работы с файлами проектов
+    async removeExistingProjectFile(fileId) {
+      // Удаляем файл из списка текущих вложений
+      this.currentProject.attachments = this.currentProject.attachments.filter(file => file.id !== fileId);
+      // Файл будет физически удален при сохранении проекта
+    },
+
+    onProjectFileDrop(event) {
+      this.isProjectDragOver = false
+      const files = Array.from(event.dataTransfer.files)
+      this.addProjectFiles(files)
+    },
+    
+    onProjectFileSelect(event) {
+      const files = Array.from(event.target.files)
+      this.addProjectFiles(files)
+      // Сбрасываем input для возможности повторного выбора тех же файлов
+      event.target.value = ''
+    },
+    
+    addProjectFiles(files) {
+      files.forEach(file => {
+        // Проверяем, что файл еще не добавлен
+        if (!this.selectedProjectFiles.find(f => f.name === file.name && f.size === file.size)) {
+          this.selectedProjectFiles.push(file)
+        }
+      })
+    },
+    
+    removeProjectFile(index) {
+      this.selectedProjectFiles.splice(index, 1)
+    },
+    
+    async uploadProjectFiles(projectId) {
+      if (this.selectedProjectFiles.length === 0) return
+      
+      console.log('Загружаем файлы для проекта:', projectId)
+      console.log('Файлы для загрузки:', this.selectedProjectFiles.map(f => ({ name: f.name, size: f.size })))
+      
+      const uploadPromises = this.selectedProjectFiles.map(file => 
+        projectManagementApi.uploadProjectAttachment(file, projectId)
+      )
+      
+      try {
+        await Promise.all(uploadPromises)
+        this.selectedProjectFiles = [] // Очищаем список после успешной загрузки
+        console.log('Файлы проекта успешно загружены')
+      } catch (error) {
+        console.error('Ошибка загрузки файлов проекта:', error)
+        console.error('Детали ошибки:', error.response?.data)
+        this.showError('Ошибка загрузки файлов проекта')
+      }
+    },
+
+    onProjectDragEnter(event) {
+      this.isProjectDragOver = true
+    },
+    
+    onProjectDragLeave(event) {
+      // Проверяем, что мы действительно покидаем зону, а не переходим к дочернему элементу
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        this.isProjectDragOver = false
+      }
+    },
+
+    downloadFile(file) {
+      // Создаем временную ссылку для скачивания
+      const link = document.createElement('a')
+      link.href = file.file
+      link.download = file.filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    },
+
+    viewFile(file) {
+      // Открываем файл в новой вкладке для просмотра
+      window.open(file.file, '_blank')
+    },
+
+    async deleteProjectFile(file) {
+      try {
+        await this.showConfirmDialog(
+          'Удалить файл?',
+          `Вы уверены, что хотите удалить файл "${file.filename}"?`
+        )
+        
+        await projectManagementApi.deleteProjectAttachment(file.id)
+        
+        // Удаляем файл из списка
+        this.project.attachments = this.project.attachments.filter(f => f.id !== file.id)
+        
+        this.showSuccess('Файл удален')
+      } catch (error) {
+        if (error !== 'cancelled') {
+          console.error('Ошибка удаления файла проекта:', error)
+          this.showError('Ошибка удаления файла')
+        }
+      }
+    },
+
+    addStringField() {
+      // Просто добавляем поле в интерфейс
+      this.currentProject.string_fields.push({
+        id: `temp_${Date.now()}_${Math.random()}`, // Временный ID
+        value: '',
+        order: this.currentProject.string_fields.length,
+        is_new: true // Флаг для определения новых полей
+      })
+    },
+
+    removeStringField(fieldId, index) {
+      // Просто удаляем поле из интерфейса
+      this.currentProject.string_fields.splice(index, 1)
+    },
+
+    updateStringField(field) {
+      // Обновляем только существующие поля (не новые)
+      if (!field.is_new && field.id) {
+        try {
+          const updateData = {
+            value: field.value,
+            order: field.order
+          }
+          
+          projectManagementApi.updateProjectStringField(field.id, updateData)
+            .then(() => {
+              this.showSuccess('Поле обновлено')
+            })
+            .catch((error) => {
+              console.error('Ошибка обновления поля:', error)
+              console.error('Детали ошибки:', error.response?.data)
+              this.showError('Ошибка обновления поля')
+            })
+        } catch (error) {
+          console.error('Ошибка обновления поля:', error)
+          this.showError('Ошибка обновления поля')
+        }
+      }
+    },
+
+    addTaskStringField() {
+      // Просто добавляем поле в интерфейс
+      this.currentTask.string_fields.push({
+        id: `temp_${Date.now()}_${Math.random()}`, // Временный ID
+        value: '',
+        order: this.currentTask.string_fields.length,
+        is_new: true // Флаг для определения новых полей
+      })
+    },
+
+    removeTaskStringField(fieldId, index) {
+      // Просто удаляем поле из интерфейса
+      this.currentTask.string_fields.splice(index, 1)
+    },
+
+    updateTaskStringField(field) {
+      // Обновляем только существующие поля (не новые)
+      if (!field.is_new && field.id) {
+        projectManagementApi.updateTaskStringField(field.id, {
+          value: field.value,
+          order: field.order
+        })
+        .then(() => {
+          this.showSuccess('Поле обновлено')
+        })
+        .catch(error => {
+          console.error('Ошибка обновления поля:', error)
+          this.showError('Ошибка обновления поля')
+        })
       }
     }
   }
@@ -2198,5 +3097,33 @@ export default {
       }
     }
   }
+}
+
+.string-fields-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.string-field-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.input-group input[type="text"] {
+  flex: 1;
+}
+
+.input-group button[type="button"] {
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 </style> 
