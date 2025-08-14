@@ -244,6 +244,77 @@ watch(
 )
 
 onMounted(async()=>{
+  // Фильтрация меню по доступным модулям
+  try {
+    const routeToModuleCode = {
+      Messenger: 'messenger',
+      BI: 'bi',
+      CRM: 'crm',
+      LMS: 'lms',
+      ExpertSystem: 'expert_system',
+      EducationAnalyticModule: 'education_analytics',
+      AssetsAnalyse: 'assets_analysis',
+      ErgoCityStruct: 'city_analyze',
+      PorosityAnalysis: 'porosity_analysis',
+      // Settings и User не скрываем по модулям
+    }
+    const avail = await apiClient.get('cms/system-modules/available/')
+    if (avail.success && Array.isArray(avail.data)) {
+      const availableCodes = new Set(avail.data.map(m => m.code))
+      // Фильтруем верхнего уровня
+      menuSections.value = menuSections.value.filter(section => {
+        const code = routeToModuleCode[section.routeName]
+        if (!code) return true
+        return availableCodes.has(code)
+      })
+
+      // Маппинг подмодулей на коды модулей
+      const subRouteToModuleCode = {
+        // LMS подмодули
+        LMSCourses: 'lms_courses',
+        // BI offcanvas-пункты (по page)
+        __biPageToCode: {
+          dashboards: 'bi_dashboards',
+          charts: 'bi_reports',
+        },
+      }
+
+      // Рекурсивная фильтрация подразделов по доступу
+      const filterSubItems = (items) => {
+        if (!Array.isArray(items)) return items
+        return items
+          .map(item => {
+            // Если это offcanvas элемент BI
+            if (item.page && subRouteToModuleCode.__biPageToCode[item.page]) {
+              const code = subRouteToModuleCode.__biPageToCode[item.page]
+              return availableCodes.has(code) ? item : null
+            }
+
+            // Элементы по имени маршрута
+            if (item.routeName && subRouteToModuleCode[item.routeName]) {
+              const code = subRouteToModuleCode[item.routeName]
+              if (!availableCodes.has(code)) return null
+            }
+
+            // Рекурсивно фильтруем вложенные children/list
+            if (item.children) item.children = filterSubItems(item.children)
+            if (item.list) item.list = filterSubItems(item.list)
+            return item
+          })
+          .filter(Boolean)
+      }
+
+      // Применяем фильтрацию к каждому разделу
+      menuSections.value = menuSections.value.map(section => {
+        if (section.children) section.children = filterSubItems(section.children)
+        if (section.list) section.list = filterSubItems(section.list)
+        return section
+      })
+    }
+  } catch (e) {
+    // Тихо игнорируем, если не удалось получить доступные модули
+  }
+
   let closedpages = await GetClosedPagesForUser()  
   for (let clpage of closedpages)
   {

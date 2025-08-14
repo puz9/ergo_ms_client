@@ -1101,6 +1101,22 @@
         "title": "Управление ролями",
         "requiresAuth": true
       }
+    },
+    "RolesPanel": {
+      "path": "/admin/roles",
+      "component": "@/modules/cms/adp/admin/Roles.vue",
+      "meta": {
+        "title": "Управление ролями",
+        "requiresAuth": true
+      }
+    },
+    "TestRolesPanel": {
+      "path": "/admin/test-roles",
+      "component": "@/modules/cms/adp/admin/TestRoles.vue",
+      "meta": {
+        "title": "Тест системы ролей",
+        "requiresAuth": true
+      }
     }
   }
 } 

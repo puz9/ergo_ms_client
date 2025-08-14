@@ -11,6 +11,8 @@ import { apiClient } from '@/js/api/manager'
 import { endpoints } from '@/js/api/endpoints'
 import { displayPhone } from '@/js/utils/phoneUtils.js'
 import DefaultAvatar from '@/components/DefaultAvatar.vue'
+import UserRoleDisplay from '@/components/UserDashboard/UserRoleDisplay.vue'
+import UserModulesDisplay from '@/components/UserDashboard/UserModulesDisplay.vue'
 
 const toast = useToast()
 const userStore = useUserStore()
@@ -434,6 +436,12 @@ onMounted(() => {
             </div>
           </div>
         </div>
+
+        <!-- Роль пользователя -->
+        <UserRoleDisplay />
+
+        <!-- Доступные модули -->
+        <UserModulesDisplay />
 
         <!-- Контактная информация -->
         <div class="mb-4">

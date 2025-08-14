@@ -1,28 +1,28 @@
 <script setup>
-import UsersWithRolesTable from '@/components/UserManagement/UsersWithRolesTable.vue'
+import RoleManagement from '@/components/RoleManagement/RoleManagement.vue'
 </script>
 
 <template>
-  <div class="users-page">
+  <div class="roles-page">
     <div class="card">
       <div class="card-header">
         <h5 class="mb-0">
-          <i class="fas fa-users me-2"></i>
-          Управление пользователями системы
+          <i class="fas fa-shield-alt me-2"></i>
+          Управление ролями пользователей
         </h5>
         <p class="text-muted mb-0 mt-2">
-          Просматривайте информацию о пользователях, их ролях и статусе. Управляйте доступом пользователей к системе.
+          Создавайте, редактируйте и удаляйте роли пользователей. Настраивайте доступы к модулям системы для каждой роли.
         </p>
       </div>
       <div class="card-body">
-        <UsersWithRolesTable />
+        <RoleManagement />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.users-page {
+.roles-page {
   .card-header {
     background-color: #f8f9fa;
     border-bottom: 1px solid #dee2e6;

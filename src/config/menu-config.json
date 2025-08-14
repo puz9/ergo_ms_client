@@ -30,6 +30,14 @@
               "name": "Пользователи"
             },
             { 
+              "routeName": "RolesPanel", 
+              "name": "Управление ролями"
+            },
+            { 
+              "routeName": "TestRolesPanel", 
+              "name": "Тест системы ролей"
+            },
+            { 
               "routeName": "CategoriesPanel", 
               "name": "Категории"
             },
